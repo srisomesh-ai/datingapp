@@ -13,6 +13,18 @@ import Profile from './pages/Profile.jsx';
 import Admin from './pages/Admin.jsx';
 import { APP_NAME, rupees } from './lib/api.js';
 
+const demoSocket = import.meta.env.VITE_DEMO === '1' ? await import('./demo/demoSocket.js') : null;
+
+function DemoBar() {
+  if (!demoSocket) return null;
+  return (
+    <div className="demo-bar">
+      <span>Demo mode · fake people, nothing leaves this browser</span>
+      <button onClick={() => demoSocket.simulateIncomingCall()}>📞 Test incoming call</button>
+    </div>
+  );
+}
+
 function Toasts() {
   const { toasts } = useApp();
   return (
@@ -28,6 +40,8 @@ function Shell() {
   const { user, unread } = useApp();
   return (
     <CallProvider>
+      <div className="shell">
+      <DemoBar />
       <header className="topbar">
         <span className="brand">🧩 {APP_NAME}</span>
         <NavLink to="/wallet" className="wallet-pill">{rupees(user.walletPaise)}</NavLink>
@@ -53,6 +67,7 @@ function Shell() {
         <NavLink to="/wallet"><span>👛</span>Wallet</NavLink>
         <NavLink to="/profile"><span>🙂</span>Profile</NavLink>
       </nav>
+      </div>
       <CallScreen />
     </CallProvider>
   );
