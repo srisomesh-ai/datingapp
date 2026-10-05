@@ -1,0 +1,9 @@
+{
+  "name": "AppName",
+  "short_name": "AppName",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#14111a",
+  "theme_color": "#ff4f79",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
