@@ -1,6 +1,10 @@
 // Placeholder brand: the app has no name yet. Change it here (and in index.html / manifest).
 export const APP_NAME = 'AppName';
 
+// Static demo build (no server): `npm run build:demo`. Everything runs in the browser.
+export const DEMO = import.meta.env.VITE_DEMO === '1';
+const demo = import.meta.env.VITE_DEMO === '1' ? await import('../demo/demoApi.js') : null;
+
 export class ApiError extends Error {
   constructor(status, message, data) {
     super(message);
@@ -11,6 +15,13 @@ export class ApiError extends Error {
 
 /** JSON API helper. Auth rides on the httpOnly cookie set at login. */
 export async function api(path, { method = 'GET', body } = {}) {
+  if (demo) {
+    try {
+      return await demo.demoApi(path, { method, body });
+    } catch (err) {
+      throw new ApiError(err.status ?? 500, err.message, err.data);
+    }
+  }
   const isForm = body instanceof FormData;
   const res = await fetch(`/api${path}`, {
     method,
@@ -28,8 +39,9 @@ export const rupees = (paise) => {
   return `₹${Number.isInteger(r) ? r.toLocaleString('en-IN') : r.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
-export const photoUrl = (user, part = 'full') => `/api/photos/${user.id}/${part}?v=${user.photoVersion ?? 0}`;
-export const tileUrl = (user, n) => `/api/photos/${user.id}/tile/${n}?v=${user.photoVersion ?? 0}`;
+export const photoUrl = (user, part = 'full') =>
+  demo ? demo.demoPhotoUrl(user, part) : `/api/photos/${user.id}/${part}?v=${user.photoVersion ?? 0}`;
+export const tileUrl = (user, n) => (demo ? demo.demoPhotoUrl(user, n) : `/api/photos/${user.id}/tile/${n}?v=${user.photoVersion ?? 0}`);
 
 export const timeAgo = (sqlDate) => {
   if (!sqlDate) return '';

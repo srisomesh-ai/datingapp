@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext.jsx';
-import { APP_NAME, api } from '../lib/api.js';
+import { APP_NAME, DEMO, api } from '../lib/api.js';
 
 export default function Auth() {
   const { setUser, toast } = useApp();
@@ -29,6 +29,7 @@ export default function Auth() {
         <div className="logo">🧩💗</div>
         <h1>{APP_NAME}</h1>
         <p>No swiping. Play a little puzzle about someone's hobbies to reveal their photo — then say hi.</p>
+        {DEMO && <p className="pill demo-note">Demo: sign up with any details. Data stays in this browser.</p>}
       </div>
       <form className="card stack" onSubmit={submit}>
         <div className="tabs">

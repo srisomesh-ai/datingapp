@@ -2,6 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { io } from 'socket.io-client';
 import { api } from '../lib/api.js';
 
+const demoSocket = import.meta.env.VITE_DEMO === '1' ? await import('../demo/demoSocket.js') : null;
+
 const AppContext = createContext(null);
 export const useApp = () => useContext(AppContext);
 
@@ -38,7 +40,7 @@ export function AppProvider({ children }) {
   // One socket per logged-in session (cookie auth).
   useEffect(() => {
     if (!user?.id) return undefined;
-    const s = io({ withCredentials: true });
+    const s = demoSocket ? demoSocket.createDemoSocket() : io({ withCredentials: true });
     setSocket(s);
     const onSolved = ({ message }) => toast(message, 'love');
     const onMessage = ({ message, from }) => {

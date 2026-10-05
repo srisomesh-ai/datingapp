@@ -1,6 +1,9 @@
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET, IS_PROD, PROFILE_MIN, perMinutePaise, PAYG_RATES, rateKeyFor } from './config.js';
 import { one } from './db.js';
+import { parseList, shuffle } from './puzzleQuestions.js';
+
+export { parseList, shuffle };
 
 export class HttpError extends Error {
   constructor(status, message, extra) {
@@ -67,14 +70,6 @@ export function ageFromDob(dob) {
   return age;
 }
 
-export const parseList = (json) => {
-  try {
-    const v = JSON.parse(json);
-    return Array.isArray(v) ? v : [];
-  } catch {
-    return [];
-  }
-};
 
 export function isProfileComplete(u) {
   return Boolean(
@@ -160,14 +155,6 @@ export function isBlockedEitherWay(a, b) {
   );
 }
 
-export function shuffle(arr) {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
 
 export function requireString(value, field, { min = 1, max = 500 } = {}) {
   if (typeof value !== 'string') throw new HttpError(400, `${field} is required`);
