@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext.jsx';
-import PuzzleGame from '../components/PuzzleGame.jsx';
+import GuessCard from '../components/GuessCard.jsx';
 import { api } from '../lib/api.js';
 
 export default function Discover() {
@@ -28,9 +28,9 @@ export default function Discover() {
   if (!user.profileComplete) {
     return (
       <div className="page center stack">
-        <div className="logo">🧩</div>
+        <div className="logo">📸</div>
         <h2>Almost there!</h2>
-        <p className="muted">Add a photo, your hobbies and likes to start playing puzzles.</p>
+        <p className="muted">Add a photo, your hobbies and likes to start meeting people.</p>
         <Link className="btn" to="/profile">Complete profile</Link>
       </div>
     );
@@ -51,14 +51,9 @@ export default function Discover() {
   }
 
   const next = () => (index + 1 >= profiles.length ? load() : setIndex(index + 1));
-  const skip = () => {
-    api(`/discover/${current.id}/skip`, { method: 'POST' }).catch(() => {});
-    next();
-  };
-
   return (
     <div className="page">
-      <PuzzleGame key={current.id} target={current} onNext={next} nextLabel="Next person" onSkip={skip} />
+      <GuessCard key={current.id} profile={current} onDone={next} />
     </div>
   );
 }

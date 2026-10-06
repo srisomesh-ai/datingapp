@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext.jsx';
-import { api, rupees, timeAgo } from '../lib/api.js';
+import { api, rupees, timeAgo, displayName } from '../lib/api.js';
 
 const TX_LABEL = {
   topup: 'Added money',
@@ -10,7 +10,16 @@ const TX_LABEL = {
   call_earning: 'Call earnings',
   withdrawal: 'Withdrawal',
   withdrawal_reversed: 'Withdrawal reversed',
+  name_guess: 'Guessed a name',
+  sample_call: '1-min sample call',
+  demo_bonus: 'Demo bonus',
 };
+
+function txAmount(t) {
+  if (t.account === 'package') return `${t.amountPaise} min`;
+  if (t.account === 'coins') return `${t.amountPaise > 0 ? '+' : ''}${t.amountPaise} 🪙`;
+  return `${t.amountPaise > 0 ? '+' : '−'}${rupees(Math.abs(t.amountPaise))}`;
+}
 
 function loadRazorpay() {
   if (window.Razorpay) return Promise.resolve();
@@ -98,10 +107,15 @@ export default function Wallet() {
           <div className="big">{rupees(w.walletPaise)}</div>
         </div>
         <div>
-          <small className="muted">Package minutes</small>
-          <div>👩 {w.packageMinutes.female ?? 0} · 👨 {w.packageMinutes.male ?? 0}</div>
+          <small className="muted">Coins</small>
+          <div className="big">🪙 {w.coins}</div>
         </div>
       </div>
+      <p className="fine">
+        Package minutes: 👩 {w.packageMinutes.female ?? 0} · 👨 {w.packageMinutes.male ?? 0}. Earn 🪙 1 for every name you guess
+        right in Discover. 🪙 {meta.sampleCall?.coins} = a {Math.round((meta.sampleCall?.seconds ?? 60) / 60) || 1}-minute sample call with
+        anyone (coins are used only if they accept).
+      </p>
 
       <section className="card stack">
         <h3>Add money</h3>
@@ -174,11 +188,15 @@ export default function Wallet() {
         {calls.map((c) => (
           <div key={c.id} className="row-between small">
             <span>
-              {c.direction === 'outgoing' ? '↗' : '↙'} {c.media === 'video' ? '🎥' : '📞'} {c.other.name} · {c.status}
+              {c.direction === 'outgoing' ? '↗' : '↙'} {c.media === 'video' ? '🎥' : '📞'} {displayName(c.other)} · {c.mode === 'sample' ? 'sample · ' : ''}{c.status}
               {c.minutes > 0 && ` · ${c.minutes} min`}
             </span>
             <span className={c.amountPaise < 0 ? 'neg' : c.amountPaise > 0 ? 'pos' : 'muted'}>
-              {c.amountPaise ? `${c.amountPaise > 0 ? '+' : '−'}${rupees(Math.abs(c.amountPaise))}` : timeAgo(c.createdAt)}
+              {c.coinsSpent
+                ? `−${c.coinsSpent} 🪙`
+                : c.amountPaise
+                  ? `${c.amountPaise > 0 ? '+' : '−'}${rupees(Math.abs(c.amountPaise))}`
+                  : timeAgo(c.createdAt)}
             </span>
           </div>
         ))}
@@ -193,7 +211,7 @@ export default function Wallet() {
               {TX_LABEL[t.type] ?? t.type} <span className="muted">· {timeAgo(t.createdAt)}</span>
             </span>
             <span className={t.amountPaise < 0 ? 'neg' : 'pos'}>
-              {t.account === 'package' ? `${t.amountPaise} min` : `${t.amountPaise > 0 ? '+' : '−'}${rupees(Math.abs(t.amountPaise))}`}
+              {txAmount(t)}
             </span>
           </div>
         ))}

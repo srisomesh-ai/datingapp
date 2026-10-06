@@ -5,9 +5,10 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { Server } from 'socket.io';
-import { CATALOG, ICE_SERVERS, PACKAGES, PAYG_RATES, PAYMENTS_MODE, PLATFORM_FEE_PERCENT, PROFILE_MIN, PUZZLE, RAZORPAY_KEY_ID } from './config.js';
+import { CATALOG, ICE_SERVERS, PACKAGES, PAYG_RATES, PAYMENTS_MODE, PLATFORM_FEE_PERCENT, NAME_GUESS, PROFILE_MIN, RAZORPAY_KEY_ID, SAMPLE_CALL } from './config.js';
 import { run } from './db.js';
-import { HttpError, userFromToken, COOKIE } from './util.js';
+import { HttpError, requireAuth, userFromToken, COOKIE } from './util.js';
+import { iceServersFor } from './ice.js';
 import { addSocket, removeSocket, setIo } from './realtime/hub.js';
 import { registerCallHandlers } from './realtime/calls.js';
 import authRoutes from './routes/auth.js';
@@ -32,7 +33,8 @@ export function createServer() {
     res.json({
       catalog: CATALOG,
       profileMin: PROFILE_MIN,
-      puzzle: PUZZLE,
+      nameGuess: NAME_GUESS,
+      sampleCall: SAMPLE_CALL,
       rates: PAYG_RATES,
       packages: PACKAGES,
       platformFeePercent: PLATFORM_FEE_PERCENT,
@@ -40,6 +42,9 @@ export function createServer() {
       iceServers: ICE_SERVERS,
     }),
   );
+
+  // Per-user ICE config (includes short-lived TURN credentials when TURN is set up).
+  app.get('/api/ice', requireAuth, (req, res) => res.json({ iceServers: iceServersFor(req.user.id) }));
 
   app.use('/api/auth', authRoutes);
   app.use('/api', profileRoutes);

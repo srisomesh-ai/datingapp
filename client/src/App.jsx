@@ -4,7 +4,6 @@ import { CallProvider } from './context/CallContext.jsx';
 import CallScreen from './components/CallScreen.jsx';
 import Auth from './pages/Auth.jsx';
 import Discover from './pages/Discover.jsx';
-import Play from './pages/Play.jsx';
 import Chats from './pages/Chats.jsx';
 import Chat from './pages/Chat.jsx';
 import Friends from './pages/Friends.jsx';
@@ -43,14 +42,14 @@ function Shell() {
       <div className="shell">
       <DemoBar />
       <header className="topbar">
-        <span className="brand">🧩 {APP_NAME}</span>
+        <span className="brand">💗 {APP_NAME}</span>
+        <NavLink to="/wallet" className="wallet-pill" title="Coins">🪙 {user.coins ?? 0}</NavLink>
         <NavLink to="/wallet" className="wallet-pill">{rupees(user.walletPaise)}</NavLink>
         {user.isAdmin && <NavLink to="/admin" className="small">Admin</NavLink>}
       </header>
       <main>
         <Routes>
           <Route path="/" element={user.profileComplete ? <Discover /> : <Navigate to="/profile" replace />} />
-          <Route path="/play/:userId" element={<Play />} />
           <Route path="/chats" element={<Chats />} />
           <Route path="/chats/:userId" element={<Chat />} />
           <Route path="/friends" element={<Friends />} />
@@ -61,7 +60,7 @@ function Shell() {
         </Routes>
       </main>
       <nav className="tabbar">
-        <NavLink to="/" end><span>🧩</span>Discover</NavLink>
+        <NavLink to="/" end><span>✨</span>Discover</NavLink>
         <NavLink to="/chats"><span>💬{unread > 0 && <i className="dot-badge" />}</span>Chats</NavLink>
         <NavLink to="/friends"><span>📞</span>Friends</NavLink>
         <NavLink to="/wallet"><span>👛</span>Wallet</NavLink>

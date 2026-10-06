@@ -2,10 +2,10 @@ import { Router } from 'express';
 import multer from 'multer';
 import fs from 'node:fs';
 import path from 'node:path';
-import { CATALOG, TILE_COUNT, UPLOAD_DIR } from '../config.js';
+import { CATALOG, UPLOAD_DIR } from '../config.js';
 import { one, run } from '../db.js';
-import { hasSolved, revealedTiles } from '../puzzle.js';
-import { HttpError, publicView, requireAuth, requireOneOf, requireString, selfView } from '../util.js';
+import { getGuess, isMatched, nameKnown } from '../connections.js';
+import { HttpError, isBlockedEitherWay, publicView, requireAuth, requireOneOf, requireString, selfView } from '../util.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -30,10 +30,12 @@ router.put('/profile', (req, res) => {
   if (b.lookingFor !== undefined) updates.looking_for = requireOneOf(b.lookingFor, CATALOG.lookingFor, 'looking for');
   if (b.hobbies !== undefined) updates.hobbies = listFrom(b.hobbies, CATALOG.hobbies, 'hobbies', { min: 3, max: 8 });
   if (b.likes !== undefined) updates.likes = listFrom(b.likes, CATALOG.likes, 'likes', { min: 3, max: 8 });
-  if (b.favoriteCuisine !== undefined) updates.favorite_cuisine = requireOneOf(b.favoriteCuisine, CATALOG.cuisines, 'cuisine');
-  if (b.weekendStyle !== undefined) updates.weekend_style = requireOneOf(b.weekendStyle, CATALOG.weekendStyles, 'weekend style');
-  if (b.chronotype !== undefined) updates.chronotype = requireOneOf(b.chronotype, CATALOG.chronotypes, 'chronotype');
-  if (b.dreamDestination !== undefined) updates.dream_destination = requireOneOf(b.dreamDestination, CATALOG.destinations, 'destination');
+  // Optional extras: null/empty clears them.
+  const optional = (v, options, field) => (v == null || v === '' ? null : requireOneOf(v, options, field));
+  if (b.favoriteCuisine !== undefined) updates.favorite_cuisine = optional(b.favoriteCuisine, CATALOG.cuisines, 'cuisine');
+  if (b.weekendStyle !== undefined) updates.weekend_style = optional(b.weekendStyle, CATALOG.weekendStyles, 'weekend style');
+  if (b.chronotype !== undefined) updates.chronotype = optional(b.chronotype, CATALOG.chronotypes, 'chronotype');
+  if (b.dreamDestination !== undefined) updates.dream_destination = optional(b.dreamDestination, CATALOG.destinations, 'destination');
 
   const cols = Object.keys(updates);
   if (cols.length) {
@@ -42,28 +44,17 @@ router.put('/profile', (req, res) => {
   res.json({ user: selfView(one('SELECT * FROM users WHERE id = ?', req.user.id)) });
 });
 
-// ---- Photo upload: the client sends the square photo, a tiny blurred preview
-// and the 3x3 tiles. Tiles are served individually so a locked photo never leaks.
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 3 * 1024 * 1024, files: TILE_COUNT + 2 } });
-const photoFields = [
-  { name: 'full', maxCount: 1 },
-  { name: 'blur', maxCount: 1 },
-  ...Array.from({ length: TILE_COUNT }, (_, i) => ({ name: `tile${i}`, maxCount: 1 })),
-];
+// ---- Profile photo (the client crops/resizes it to a square JPEG). Photos are
+// visible to every logged-in user; only the name is part of the guessing game.
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 3 * 1024 * 1024, files: 1 } });
 const isJpeg = (buf) => buf?.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
 
-router.post('/profile/photo', upload.fields(photoFields), (req, res) => {
-  const files = req.files ?? {};
-  const names = photoFields.map((f) => f.name);
-  for (const n of names) {
-    if (!isJpeg(files[n]?.[0]?.buffer)) throw new HttpError(400, `Missing or invalid image part: ${n}`);
-  }
-  if (files.blur[0].size > 20 * 1024) throw new HttpError(400, 'Blur preview too large');
-
+router.post('/profile/photo', upload.single('full'), (req, res) => {
+  if (!isJpeg(req.file?.buffer)) throw new HttpError(400, 'Please upload a JPEG photo');
   const version = req.user.photo_version + 1;
   const dir = path.join(UPLOAD_DIR, String(req.user.id), `v${version}`);
   fs.mkdirSync(dir, { recursive: true });
-  for (const n of names) fs.writeFileSync(path.join(dir, `${n}.jpg`), files[n][0].buffer);
+  fs.writeFileSync(path.join(dir, 'full.jpg'), req.file.buffer);
   // Drop the previous version.
   fs.rmSync(path.join(UPLOAD_DIR, String(req.user.id), `v${req.user.photo_version}`), { recursive: true, force: true });
 
@@ -71,49 +62,28 @@ router.post('/profile/photo', upload.fields(photoFields), (req, res) => {
   res.json({ user: selfView(one('SELECT * FROM users WHERE id = ?', req.user.id)) });
 });
 
-function sendPhotoPart(res, user, part) {
-  const file = path.join(UPLOAD_DIR, String(user.id), `v${user.photo_version}`, `${part}.jpg`);
-  if (!user.has_photo || !fs.existsSync(file)) throw new HttpError(404, 'No photo');
-  res.set('Cache-Control', 'private, max-age=86400');
-  res.sendFile(file);
-}
-
 function targetUser(id) {
   const u = one('SELECT * FROM users WHERE id = ? AND is_banned = 0', Number(id));
   if (!u) throw new HttpError(404, 'User not found');
   return u;
 }
 
-/** Full photo is visible to: yourself, people who solved your puzzle, and callers if you're a listed friend. */
-export function canSeeFullPhoto(viewerId, target) {
-  return viewerId === target.id || Boolean(target.is_host) || hasSolved(viewerId, target.id);
-}
-
-router.get('/photos/:id/blur', (req, res) => sendPhotoPart(res, targetUser(req.params.id), 'blur'));
-
 router.get('/photos/:id/full', (req, res) => {
   const target = targetUser(req.params.id);
-  if (!canSeeFullPhoto(req.user.id, target)) throw new HttpError(403, 'Solve the puzzle to see this photo');
-  sendPhotoPart(res, target, 'full');
-});
-
-router.get('/photos/:id/tile/:n', (req, res) => {
-  const target = targetUser(req.params.id);
-  const n = Number(req.params.n);
-  if (!Number.isInteger(n) || n < 0 || n >= TILE_COUNT) throw new HttpError(400, 'Invalid tile');
-  if (!canSeeFullPhoto(req.user.id, target) && !revealedTiles(req.user.id, target.id).includes(n)) {
-    throw new HttpError(403, 'Tile not revealed yet');
-  }
-  sendPhotoPart(res, target, `tile${n}`);
+  if (target.id !== req.user.id && isBlockedEitherWay(req.user.id, target.id)) throw new HttpError(404, 'No photo');
+  const file = path.join(UPLOAD_DIR, String(target.id), `v${target.photo_version}`, 'full.jpg');
+  if (!target.has_photo || !fs.existsSync(file)) throw new HttpError(404, 'No photo');
+  res.set('Cache-Control', 'private, max-age=86400');
+  res.sendFile(file);
 });
 
 router.get('/users/:id', (req, res) => {
   const target = targetUser(req.params.id);
-  const revealed = req.user.id === target.id || hasSolved(req.user.id, target.id);
+  const known = nameKnown(req.user.id, target);
+  const g = known ? null : getGuess(req.user.id, target.id);
   res.json({
-    user: publicView(target, { revealed }),
-    canSeePhoto: canSeeFullPhoto(req.user.id, target),
-    revealedTiles: revealedTiles(req.user.id, target.id),
+    user: publicView(target, { hideName: !known, mask: g?.mask ?? null }),
+    matched: isMatched(req.user.id, target.id),
   });
 });
 

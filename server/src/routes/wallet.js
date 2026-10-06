@@ -9,10 +9,11 @@ const router = Router();
 router.use(requireAuth);
 
 function walletSummary(userId) {
-  const u = one('SELECT wallet_paise, earnings_paise FROM users WHERE id = ?', userId);
+  const u = one('SELECT wallet_paise, earnings_paise, coins FROM users WHERE id = ?', userId);
   return {
     walletPaise: u.wallet_paise,
     earningsPaise: u.earnings_paise,
+    coins: u.coins,
     packageMinutes: packageMinutes(userId),
     lots: all(
       `SELECT id, package_id AS packageId, rate_key AS rateKey, minutes_total AS minutesTotal, minutes_left AS minutesLeft, expires_at AS expiresAt

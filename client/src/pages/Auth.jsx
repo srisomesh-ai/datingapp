@@ -28,7 +28,7 @@ export default function Auth() {
       <div className="auth-hero">
         <div className="logo">🧩💗</div>
         <h1>{APP_NAME}</h1>
-        <p>No swiping. Play a little puzzle about someone's hobbies to reveal their photo — then say hi.</p>
+        <p>No swiping. Guess someone's name to earn a coin and send them a message with your like.</p>
         {DEMO && <p className="pill demo-note">Demo: sign up with any details. Data stays in this browser.</p>}
       </div>
       <form className="card stack" onSubmit={submit}>

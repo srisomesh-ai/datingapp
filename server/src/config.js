@@ -1,4 +1,4 @@
-// Central configuration: money, pricing, puzzle rules and profile catalogs.
+// Central configuration: money, pricing, guess-the-name rules and profile catalogs.
 // All money is stored and computed in paise (1 INR = 100 paise) to avoid float errors.
 
 const env = process.env;
@@ -72,23 +72,33 @@ if (IS_PROD && PAYMENTS_MODE === 'mock' && env.ALLOW_MOCK_PAYMENTS !== '1') {
 
 export const BILLING_INTERVAL_MS = Number(env.BILLING_INTERVAL_MS ?? 60_000); // one billed minute
 export const RING_TIMEOUT_MS = Number(env.RING_TIMEOUT_MS ?? 30_000);
+
+// Spend coins on a short "sample" call with anyone; coins are taken only if they accept.
+export const SAMPLE_CALL = {
+  coins: 10,
+  seconds: Number(env.SAMPLE_CALL_SECONDS ?? 60),
+  perPersonHours: 24, // one accepted sample call to the same person per day
+};
 export const LOW_BALANCE_MINUTES = 2;
 
 export const ICE_SERVERS = env.ICE_SERVERS
   ? JSON.parse(env.ICE_SERVERS)
   : [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
 
-// ---- Puzzle -------------------------------------------------------------
+// TURN relay (coturn with `use-auth-secret`) so calls connect on mobile data / strict NATs.
+// Each logged-in user gets short-lived credentials; the secret never leaves the server.
+export const TURN_URLS = (env.TURN_URLS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+export const TURN_SECRET = env.TURN_SECRET ?? '';
+export const TURN_TTL_SECONDS = 6 * 3600;
 
-export const PUZZLE = {
-  grid: 3, // 3x3 photo tiles
-  questions: 4, // questions asked per attempt
-  correctToSolve: 3, // correct answers needed to reveal the whole photo
-  maxWrong: 2, // wrong answers that end the attempt
-  tilesPerCorrect: 3,
-  cooldownHours: 24, // wait before retrying a failed puzzle
+// ---- Guess the name -----------------------------------------------------
+
+export const NAME_GUESS = {
+  options: 4, // names to choose from
+  coinsPerCorrect: 1,
+  dailyCoinLimit: 50, // stops coin farming
+  messageMaxLength: 300, // the one intro message a correct guess unlocks
 };
-export const TILE_COUNT = PUZZLE.grid * PUZZLE.grid;
 export const SKIP_DAYS = 3;
 
 // ---- Profile catalogs (single source of truth for the client too) ------
@@ -109,8 +119,22 @@ export const CATALOG = {
   chronotypes: ['Morning person', 'Night owl'],
   destinations: ['Mountains', 'Beaches', 'Big cities', 'Countryside', 'Abroad', 'Spiritual places'],
   lookingFor: ['soulmate', 'friend', 'both'],
+  // Decoy names for the guess-the-name game.
+  names: {
+    female: [
+      'Aanya', 'Aditi', 'Aishwarya', 'Ananya', 'Anjali', 'Anushka', 'Bhavana', 'Deepika', 'Divya', 'Gauri', 'Ishita',
+      'Kavya', 'Keerthi', 'Lakshmi', 'Meera', 'Megha', 'Nandini', 'Neha', 'Nisha', 'Pooja', 'Priya', 'Radhika',
+      'Riya', 'Sahana', 'Sanjana', 'Shreya', 'Sneha', 'Swathi', 'Tanvi', 'Divyasri', 'Varsha', 'Yamini',
+    ],
+    male: [
+      'Aarav', 'Abhinav', 'Aditya', 'Akash', 'Arjun', 'Bharath', 'Deepak', 'Gautam', 'Harsha', 'Karan', 'Karthik',
+      'Kiran', 'Manoj', 'Naveen', 'Nikhil', 'Pranav', 'Rahul', 'Rajesh', 'Ravi', 'Rohan', 'Sai', 'Sandeep',
+      'Siddharth', 'Sumanth', 'Suresh', 'Tarun', 'Varun', 'Vijay', 'Vikram', 'Vinay', 'Vishal', 'Yash',
+    ],
+  },
   genders: ['male', 'female', 'other'],
   interestedIn: ['male', 'female', 'everyone'],
 };
 
+// The quick-question fields (cuisine, weekend, ...) are optional extras shown on the card.
 export const PROFILE_MIN = { hobbies: 3, likes: 3 };

@@ -2,7 +2,12 @@
 
 This is a web app for finding a soulmate or a friend, built mobile-first. It has two main features:
 
-1. **Puzzle reveal (instead of swiping).** Every profile photo starts hidden behind a 3×3 grid. To uncover it, you answer questions about the person's hobbies, likes, favourite cuisine, perfect weekend and so on. Each right answer reveals 3 tiles. Get 3 right and the whole photo is revealed and **messaging unlocks**. Two wrong answers end the attempt, and you can try again after 24 hours. Tiles you already uncovered stay uncovered.
+1. **Guess the name (instead of swiping).** Discover shows each person's photo and profile, but their **name is hidden**, with only some letters showing (e.g. `R _ _ _ n`). Pick the right name from 4 options, with one try per profile:
+   - **Right:** you earn **🪙 1 coin** and can send **one message** together with your ❤️ like.
+   - **Wrong:** no coin and no message, but you can still send a plain like.
+   - The other person sees your like and message under **Likes you** and can like back or pass. Liking each other is a **match**, which opens full chat and free calls.
+   - Decoy names have the same gender and prefer the same first letter, so the visible letters are the clue. Coins are capped per day (`dailyCoinLimit`) to stop farming.
+   - **Spend 🪙 10 on a 1-minute sample call** (voice or video) with anyone: from a Discover card after guessing, on a Find a Friend card, or in a chat while you wait for a like back. Coins are taken only if they **accept**; declined, missed or failed calls are free. The call ends by itself after 60 seconds, with a countdown on screen. There's one sample call per person per 24 hours, and none between matches, who already call free.
 2. **Find a Friend (paid voice and video calls).** Users can turn on *Friend mode* and go "available". Anyone can then voice or video call them, paying per minute:
 
    | Friend    | Pay-as-you-go           | Packages (from wallet, valid 90 days)                  |
@@ -12,12 +17,13 @@ This is a web app for finding a soulmate or a friend, built mobile-first. It has
 
    The **platform fee is 25% of every paid minute**, and the friend keeps 75% as withdrawable earnings (paid out to UPI after admin approval). Package minutes are used first, then wallet balance. Billing is prepaid: each minute is charged as it starts, and the call ends automatically when the caller runs out.
 
-People who are connected through a solved puzzle can also voice and video call each other **for free** from the chat.
+Matches can also voice and video call each other **for free** from the chat.
 
 ## Features
 
-- Email signup with an 18+ check, profiles with a hobbies/likes catalog and a quick-questions quiz
-- Puzzle answers never reach the client. The server sends one question at a time and serves photo **tiles individually**, only after they are earned. The unrevealed photo is shown as a tiny 12px blurred preview.
+- Email signup with an 18+ check, profiles with a hobbies/likes catalog and optional fun facts
+- The answer never reaches the client before you guess: the server sends only the masked name and the options, and hides the name everywhere else (profile and chat lookups) until you've guessed or they've liked you.
+- Coins ledger shown in the top bar and Wallet: earned by guessing names, spent on sample calls (`SAMPLE_CALL` in `server/src/config.js`).
 - Realtime chat over Socket.IO, with unread counts and read receipts
 - 1:1 WebRTC voice and video calls (mute, camera on/off, front/back camera switch, ringtone, live cost meter, low-balance warning, end-of-call summary)
 - Wallet: top-ups through Razorpay (UPI, cards, netbanking), call packages, transaction ledger, friend earnings and UPI withdrawals
@@ -38,7 +44,7 @@ npm run install:all
 npm run seed          # 10 demo users, e.g. ananya@demo.app / password123 (₹500 wallet each)
 npm run dev:server    # API + sockets on :4000
 npm run dev:client    # app on http://localhost:5173 (proxies /api and /socket.io)
-npm test              # server tests: puzzle, messaging gate, wallet, paid-call billing & fee split
+npm test              # server tests: name guess, likes/matches, wallet, paid-call billing & fee split
 ```
 
 To try a call, open two browsers (or one normal window and one incognito window), log in as two different users, and call a friend who is "Available". Camera and mic access require `localhost` or HTTPS.
@@ -47,25 +53,27 @@ Without Razorpay keys, payments run in **mock mode**: "Pay" credits the wallet i
 
 ## Static demo (for layout testing on plain HTML hosting)
 
-`npm --prefix client run build:demo` builds `client/dist-demo/`. This is a version of the app that needs **no server**. A fake backend runs in the browser, with 10 demo people, auto-replies in chat, the real puzzle rules, a wallet and packages. Calls connect over real WebRTC to a local animated "demo video" peer, and the yellow bar's **Test incoming call** button rings you. In the demo, one billed minute lasts 10 seconds so you can watch the meter move. Data is kept in that browser's localStorage, and logging out resets it.
+`npm --prefix client run build:demo` builds `client/dist-demo/`. This is a version of the app that needs **no server**. A fake backend runs in the browser, with 10 demo people, auto-replies in chat, the real guess-the-name rules, people who like you back, 🪙 10 to try a sample call, a wallet and packages. Calls connect over real WebRTC to a local animated "demo video" peer, and the yellow bar's **Test incoming call** button rings you. In the demo, one billed minute lasts 10 seconds so you can watch the meter move. Data is kept in that browser's localStorage, and logging out resets it.
 
-A ready-built copy is committed in **`demo-site/`**, so you can download it straight from GitHub. To use it, upload the *contents* of `demo-site/` (or `client/dist-demo/` after building) (including `.htaccess`, which makes deep links work on Apache/LiteSpeed) to your hosting's `public_html`. Camera and mic need HTTPS. The normal `npm run build` contains none of the demo code.
+This was used for layout testing on static hosting and isn't needed for the real app; the normal `npm run build` contains none of the demo code.
 
-## Production
+## Go live (VPS)
 
-```bash
-npm run build && NODE_ENV=production JWT_SECRET=... RAZORPAY_KEY_ID=... RAZORPAY_KEY_SECRET=... npm start
-```
+Follow **[deploy/README.md](deploy/README.md)**. One command (`deploy/setup.sh`) installs and configures a fresh Ubuntu VPS:
 
-The server serves the built client from `client/dist`. See `server/.env.example` for every setting. Before launch:
+- Node.js 22 and the app as a service
+- HTTPS through Caddy, on a free `<ip>.sslip.io` address until you have a domain
+- a TURN relay (coturn) so calls work on mobile data, with short-lived per-user credentials
+- the firewall
+- daily database backups
 
-- **TURN server.** STUN alone fails for many users on mobile data or behind strict NATs. Run coturn or use a hosted TURN service, and set `ICE_SERVERS`.
-- **HTTPS** is required for camera and mic access.
+Before a public launch:
+
 - **Single instance.** Call timers and presence live in memory, so run one server process. Scaling out would need a Socket.IO Redis adapter plus shared call state.
 - **Payouts.** Withdrawals are marked paid manually by an admin. Automate them with RazorpayX if needed.
 - **Compliance.** Paid companionship calls need clear content and safety policies, KYC for friends who earn, and GST/TDS treatment of the platform fee and payouts. Confirm with a CA or lawyer.
 
 ## Where to change things
 
-- Prices, packages, the 25% fee, puzzle rules and the hobby/like catalogs are all in `server/src/config.js`. The client reads them from `/api/meta`.
+- Prices, packages, the 25% fee, guess-the-name rules, decoy names and the hobby/like catalogs are all in `server/src/config.js`. The client reads them from `/api/meta`.
 - App name: `APP_NAME` in `client/src/lib/api.js`, plus `client/index.html` and `client/public/manifest.webmanifest`. It is currently the placeholder `AppName`.

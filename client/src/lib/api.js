@@ -39,9 +39,10 @@ export const rupees = (paise) => {
   return `₹${Number.isInteger(r) ? r.toLocaleString('en-IN') : r.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
-export const photoUrl = (user, part = 'full') =>
-  demo ? demo.demoPhotoUrl(user, part) : `/api/photos/${user.id}/${part}?v=${user.photoVersion ?? 0}`;
-export const tileUrl = (user, n) => (demo ? demo.demoPhotoUrl(user, n) : `/api/photos/${user.id}/tile/${n}?v=${user.photoVersion ?? 0}`);
+export const photoUrl = (user) => (demo ? demo.demoPhotoUrl(user) : `/api/photos/${user.id}/full?v=${user.photoVersion ?? 0}`);
+
+/** Name to show for someone; before you've guessed it, the masked hint. */
+export const displayName = (user) => user?.name ?? user?.nameMask ?? 'Someone';
 
 export const timeAgo = (sqlDate) => {
   if (!sqlDate) return '';

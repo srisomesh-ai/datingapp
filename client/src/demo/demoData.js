@@ -1,6 +1,6 @@
 // Demo-only data: fake people with drawn SVG "photos", so the static demo needs no image files.
-import { CATALOG, PUZZLE } from '../../../server/src/config.js';
-import { shuffle } from '../../../server/src/puzzleQuestions.js';
+import { CATALOG } from '../../../server/src/config.js';
+import { shuffle } from '../../../server/src/nameGuess.js';
 
 const PEOPLE = [
   ['Ananya', 'female', 'Bengaluru', 'Chai over coffee, always.', true],
@@ -33,14 +33,15 @@ export function makePeople() {
     is_host: isHost,
     host_available: isHost && i % 4 !== 3,
     host_headline: isHost ? 'Here to listen, laugh and chat 🙂' : '',
-    online: i % 3 !== 2,
+    online: !isHost || i % 3 !== 2, // some friends offline so every status shows
   }));
 }
 
 const SIZE = 600;
 
-/** A colourful portrait placeholder. `viewBox` crops it into puzzle tiles. */
-function avatarSvg(person, viewBox = `0 0 ${SIZE} ${SIZE}`) {
+/** A colourful portrait placeholder (no initial, so it doesn't give the name away). */
+function avatarSvg(person) {
+  const viewBox = `0 0 ${SIZE} ${SIZE}`;
   const hue = (person.id * 47) % 360;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" preserveAspectRatio="none">
 <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
@@ -48,20 +49,14 @@ function avatarSvg(person, viewBox = `0 0 ${SIZE} ${SIZE}`) {
 <rect width="${SIZE}" height="${SIZE}" fill="url(#g)"/>
 <circle cx="300" cy="240" r="110" fill="#faebdc"/>
 <ellipse cx="300" cy="600" rx="200" ry="190" fill="#faebdc"/>
-<text x="300" y="275" font-family="sans-serif" font-size="110" font-weight="700" text-anchor="middle" fill="hsl(${hue},60%,40%)">${person.name[0]}</text>
 </svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
-export function demoPhoto(person, part) {
-  if (part === 'full' || part === 'blur') return avatarSvg(person);
-  const n = Number(part);
-  const t = SIZE / PUZZLE.grid;
-  return avatarSvg(person, `${(n % PUZZLE.grid) * t} ${Math.floor(n / PUZZLE.grid) * t} ${t} ${t}`);
-}
+export const demoPhoto = (person) => avatarSvg(person);
 
 export const REPLIES = [
-  'Haha hi! You actually guessed my hobbies 😄',
+  'Haha hi! You actually guessed my name 😄',
   "That's so sweet. How's your day going?",
   'Same here! What do you do on weekends?',
   "Ooh nice. We should talk on a call sometime 🙂",

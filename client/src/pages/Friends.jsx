@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext.jsx';
 import { useCall } from '../context/CallContext.jsx';
 import Avatar from '../components/Avatar.jsx';
+import SampleCall from '../components/SampleCall.jsx';
 import { api, rupees } from '../lib/api.js';
 
 const STATUS = { available: 'Available', busy: 'On a call', offline: 'Offline' };
@@ -63,7 +64,7 @@ export default function Friends() {
           const short = f.affordableMinutes < 1;
           return (
             <li key={f.id} className="card friend">
-              <Avatar user={f} unlocked size={64} online={f.status === 'available'} />
+              <Avatar user={f} size={64} online={f.status === 'available'} />
               <div className="grow">
                 <div className="row-between">
                   <strong>{f.name}, {f.age}</strong>
@@ -84,6 +85,7 @@ export default function Friends() {
                     </>
                   )}
                 </div>
+                {canCall && (user.coins ?? 0) >= (meta.sampleCall?.coins ?? Infinity) && <SampleCall user={f} compact />}
               </div>
             </li>
           );

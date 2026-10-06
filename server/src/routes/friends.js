@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import { all, one, run } from '../db.js';
 import { affordableMinutes } from '../billing.js';
+import { getGuess, nameKnown } from '../connections.js';
 import { isBusy } from '../realtime/calls.js';
 import { isOnline } from '../realtime/hub.js';
 import { HttpError, hostRate, isProfileComplete, publicView, requireAuth, requireString, selfView } from '../util.js';
@@ -76,12 +77,16 @@ router.get('/calls', (req, res) => {
       return {
         id: c.id,
         direction: outgoing ? 'outgoing' : 'incoming',
-        other: publicView(one('SELECT * FROM users WHERE id = ?', c.other_id)),
+        other: (() => {
+          const o = one('SELECT * FROM users WHERE id = ?', c.other_id);
+          return publicView(o, { hideName: !nameKnown(req.user.id, o), mask: getGuess(req.user.id, o.id)?.mask ?? null });
+        })(),
         media: c.media,
         mode: c.mode,
         status: c.status,
         minutes: c.billed_minutes,
         amountPaise: outgoing ? -c.caller_paid_paise : c.host_earned_paise,
+        coinsSpent: outgoing ? c.coins_spent : 0,
         endReason: c.end_reason,
         startedAt: c.started_at,
         endedAt: c.ended_at,
