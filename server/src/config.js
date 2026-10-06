@@ -72,6 +72,13 @@ if (IS_PROD && PAYMENTS_MODE === 'mock' && env.ALLOW_MOCK_PAYMENTS !== '1') {
 
 export const BILLING_INTERVAL_MS = Number(env.BILLING_INTERVAL_MS ?? 60_000); // one billed minute
 export const RING_TIMEOUT_MS = Number(env.RING_TIMEOUT_MS ?? 30_000);
+
+// Spend coins on a short "sample" call with anyone; coins are taken only if they accept.
+export const SAMPLE_CALL = {
+  coins: 10,
+  seconds: Number(env.SAMPLE_CALL_SECONDS ?? 60),
+  perPersonHours: 24, // one accepted sample call to the same person per day
+};
 export const LOW_BALANCE_MINUTES = 2;
 
 export const ICE_SERVERS = env.ICE_SERVERS

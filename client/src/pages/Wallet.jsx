@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext.jsx';
-import { api, rupees, timeAgo } from '../lib/api.js';
+import { api, rupees, timeAgo, displayName } from '../lib/api.js';
 
 const TX_LABEL = {
   topup: 'Added money',
@@ -11,6 +11,8 @@ const TX_LABEL = {
   withdrawal: 'Withdrawal',
   withdrawal_reversed: 'Withdrawal reversed',
   name_guess: 'Guessed a name',
+  sample_call: '1-min sample call',
+  demo_bonus: 'Demo bonus',
 };
 
 function txAmount(t) {
@@ -111,7 +113,8 @@ export default function Wallet() {
       </div>
       <p className="fine">
         Package minutes: 👩 {w.packageMinutes.female ?? 0} · 👨 {w.packageMinutes.male ?? 0}. Earn 🪙 1 for every name you guess
-        right in Discover.
+        right in Discover. 🪙 {meta.sampleCall?.coins} = a {Math.round((meta.sampleCall?.seconds ?? 60) / 60) || 1}-minute sample call with
+        anyone (coins are used only if they accept).
       </p>
 
       <section className="card stack">
@@ -185,11 +188,15 @@ export default function Wallet() {
         {calls.map((c) => (
           <div key={c.id} className="row-between small">
             <span>
-              {c.direction === 'outgoing' ? '↗' : '↙'} {c.media === 'video' ? '🎥' : '📞'} {c.other.name} · {c.status}
+              {c.direction === 'outgoing' ? '↗' : '↙'} {c.media === 'video' ? '🎥' : '📞'} {displayName(c.other)} · {c.mode === 'sample' ? 'sample · ' : ''}{c.status}
               {c.minutes > 0 && ` · ${c.minutes} min`}
             </span>
             <span className={c.amountPaise < 0 ? 'neg' : c.amountPaise > 0 ? 'pos' : 'muted'}>
-              {c.amountPaise ? `${c.amountPaise > 0 ? '+' : '−'}${rupees(Math.abs(c.amountPaise))}` : timeAgo(c.createdAt)}
+              {c.coinsSpent
+                ? `−${c.coinsSpent} 🪙`
+                : c.amountPaise
+                  ? `${c.amountPaise > 0 ? '+' : '−'}${rupees(Math.abs(c.amountPaise))}`
+                  : timeAgo(c.createdAt)}
             </span>
           </div>
         ))}

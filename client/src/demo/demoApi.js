@@ -1,7 +1,7 @@
 // In-browser fake backend for the static demo build (VITE_DEMO=1). It mirrors the
 // real API's shapes and rules closely enough to test every screen without a server.
 import {
-  CATALOG, ICE_SERVERS, NAME_GUESS, PACKAGES, PAYG_RATES, PLATFORM_FEE_PERCENT, PROFILE_MIN,
+  CATALOG, ICE_SERVERS, NAME_GUESS, PACKAGES, PAYG_RATES, PLATFORM_FEE_PERCENT, PROFILE_MIN, SAMPLE_CALL,
 } from '../../../server/src/config.js';
 import { buildNameGuess, shuffle } from '../../../server/src/nameGuess.js';
 import { REPLIES, demoPhoto, makePeople } from './demoData.js';
@@ -20,7 +20,7 @@ function fresh() {
     at: now(),
     declined: false,
   }));
-  return { me: null, mePhoto: null, people, guesses: {}, likesOut: [], likesIn, coins: 0, messages: [], skips: [], blocked: [], walletPaise: 500_00, earningsPaise: 0, lots: [], tx: [{ id: 1, account: 'wallet', type: 'topup', amountPaise: 500_00, note: 'Demo credit', createdAt: now() }], calls: [], withdrawals: [], seq: 100 };
+  return { me: null, mePhoto: null, people, guesses: {}, likesOut: [], likesIn, coins: 10, messages: [], skips: [], blocked: [], walletPaise: 500_00, earningsPaise: 0, lots: [], tx: [{ id: 2, account: 'coins', type: 'demo_bonus', amountPaise: 10, createdAt: now() }, { id: 1, account: 'wallet', type: 'topup', amountPaise: 500_00, note: 'Demo credit', createdAt: now() }], calls: [], withdrawals: [], seq: 100 };
 }
 
 let state;
@@ -129,7 +129,7 @@ const route = (method, pattern, fn) => routes.push({ method, re: new RegExp(`^${
 const requireMe = () => state.me ?? fail(401, 'Please log in');
 
 route('GET', '/meta', () => ({
-  catalog: CATALOG, profileMin: PROFILE_MIN, nameGuess: NAME_GUESS, rates: PAYG_RATES, packages: PACKAGES,
+  catalog: CATALOG, profileMin: PROFILE_MIN, nameGuess: NAME_GUESS, sampleCall: SAMPLE_CALL, rates: PAYG_RATES, packages: PACKAGES,
   platformFeePercent: PLATFORM_FEE_PERCENT, payments: { mode: 'mock', razorpayKeyId: null }, iceServers: ICE_SERVERS, demo: true,
 }));
 

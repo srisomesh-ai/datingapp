@@ -9,6 +9,7 @@ process.env.DB_FILE = ':memory:';
 process.env.UPLOAD_DIR = tmp;
 process.env.BILLING_INTERVAL_MS = '150';
 process.env.RING_TIMEOUT_MS = '2000';
+process.env.SAMPLE_CALL_SECONDS = '1';
 
 const { createServer } = await import('../src/app.js');
 const { db } = await import('../src/db.js');
@@ -281,6 +282,53 @@ test('free calls need a match', async () => {
     rSock.close();
     aSock.close();
     kSock.close();
+  }
+});
+
+test('sample call: 10 coins for 1 minute with anyone, charged only if they accept', async () => {
+  db.prepare('UPDATE users SET coins = 15 WHERE id = ?').run(kiran.id);
+  const kSock = await connect(kiran.token);
+  const aSock = await connect(asha.token);
+  const rSock = await connect(ravi.token);
+  const coinsOf = (u) => db.prepare('SELECT coins FROM users WHERE id = ?').get(u.id).coins;
+  try {
+    // Matches call free, so sample calls aren't offered between them.
+    assert.match((await emitAck(rSock, 'call:start', { to: asha.id, media: 'audio', mode: 'sample' })).error, /free/);
+
+    // Declined: no coins taken. The incoming call says it's a 1-minute sample.
+    let incoming = once(aSock, 'call:incoming');
+    let start = await emitAck(kSock, 'call:start', { to: asha.id, media: 'video', mode: 'sample' });
+    assert.ok(start.ok, JSON.stringify(start));
+    assert.equal(start.limitSeconds, 1);
+    assert.equal(start.callee.name, null); // Kiran never guessed Asha's name
+    assert.equal((await incoming).limitSeconds, 1);
+    let ended = once(kSock, 'call:ended');
+    aSock.emit('call:reject', { callId: start.callId });
+    assert.equal((await ended).status, 'rejected');
+    assert.equal(coinsOf(kiran), 15);
+
+    // Accepted: 10 coins spent, call ends itself when the time is up.
+    incoming = once(aSock, 'call:incoming');
+    start = await emitAck(kSock, 'call:start', { to: asha.id, media: 'video', mode: 'sample' });
+    await incoming;
+    ended = once(kSock, 'call:ended');
+    assert.ok((await emitAck(aSock, 'call:accept', { callId: start.callId })).ok);
+    assert.equal(coinsOf(kiran), 5);
+    const end = await ended;
+    assert.equal(end.reason, 'time_up');
+    assert.equal(end.coinsSpent, 10);
+    const tx = db.prepare("SELECT * FROM transactions WHERE user_id = ? AND type = 'sample_call'").all(kiran.id);
+    assert.deepEqual(tx.map((t) => t.amount_paise), [-10]);
+
+    // Once per person per day, and coins are checked up front.
+    db.prepare('UPDATE users SET coins = 20 WHERE id = ?').run(kiran.id);
+    assert.match((await emitAck(kSock, 'call:start', { to: asha.id, media: 'audio', mode: 'sample' })).error, /already had a sample call/);
+    db.prepare('UPDATE users SET coins = 5 WHERE id = ?').run(kiran.id);
+    assert.equal((await emitAck(kSock, 'call:start', { to: ravi.id, media: 'audio', mode: 'sample' })).code, 'insufficient_coins');
+  } finally {
+    kSock.close();
+    aSock.close();
+    rSock.close();
   }
 });
 

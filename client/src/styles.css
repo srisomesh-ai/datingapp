@@ -201,20 +201,25 @@ main { flex: 1; min-height: 0; overflow-y: auto; width: 100%; max-width: 560px; 
 .round.danger { background: var(--bad); }
 .round.success { background: var(--good); }
 .remote-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.local-video { position: absolute; right: 16px; top: 80px; width: 110px; aspect-ratio: 3/4; object-fit: cover; border-radius: 14px; z-index: 2; transform: scaleX(-1); border: 2px solid #ffffff40; }
+.local-video { position: absolute; right: 16px; top: 112px; width: 110px; aspect-ratio: 3/4; object-fit: cover; border-radius: 14px; z-index: 2; transform: scaleX(-1); border: 2px solid #ffffff40; }
 .local-video.off { opacity: 0.2; }
 .pill { background: #ffffff1f; padding: 4px 12px; border-radius: 999px; font-size: 0.85rem; }
 .summary { display: flex; flex-direction: column; gap: 6px; min-width: 220px; }
 
 /* Toasts */
-.toasts { position: fixed; top: 64px; left: 0; right: 0; z-index: 30; display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; padding: 0 16px; }
+.toasts { position: fixed; bottom: calc(112px + env(safe-area-inset-bottom)); left: 0; right: 0; z-index: 30; display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; padding: 0 16px; }
 .toast { background: var(--surface-2); padding: 10px 16px; border-radius: 12px; box-shadow: 0 6px 24px #0009; max-width: 480px; font-size: 0.9rem; animation: drop 0.25s ease; }
 .toast.error { border-left: 4px solid var(--bad); }
 .toast.warn { border-left: 4px solid var(--warn); }
 .toast.love { border-left: 4px solid var(--brand); }
-@keyframes drop { from { transform: translateY(-10px); opacity: 0; } }
+@keyframes drop { from { transform: translateY(10px); opacity: 0; } }
 
 /* Demo build */
 .demo-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 16px; background: #fbbf24; color: #1a1300; font-size: 0.75rem; }
 .demo-bar button { border: 0; border-radius: 999px; background: #1a1300; color: #fbbf24; padding: 5px 10px; font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .demo-note { display: inline-block; margin-top: 10px; }
+
+/* Sample call */
+.sample-call { display: flex; flex-direction: column; gap: 8px; background: var(--surface-2); border-radius: 12px; padding: 10px 12px; }
+.sample-call.compact { margin-top: 8px; padding: 8px 10px; }
+.pill-warn { background: var(--bad); color: white; }

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext.jsx';
 import { api, labelFor, photoUrl } from '../lib/api.js';
+import SampleCall from './SampleCall.jsx';
 
 /**
  * Discover card: the photo and profile are visible, the name is hidden.
@@ -134,6 +135,7 @@ export default function GuessCard({ profile, onDone }) {
           ) : (
             <h3>Oops, it's {p.name}. No coin this time.</h3>
           )}
+          <SampleCall user={p} />
           <div className="row">
             <button className="btn ghost" onClick={skip} disabled={busy}>Skip</button>
             <button className="btn" onClick={like} disabled={busy}>

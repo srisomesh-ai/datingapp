@@ -1,9 +1,9 @@
 // Call lifecycle + WebRTC signaling relay + per-minute billing timers.
 // Media flows peer-to-peer (WebRTC); the server only relays SDP/ICE and bills.
-import { BILLING_INTERVAL_MS, ICE_SERVERS, LOW_BALANCE_MINUTES, RING_TIMEOUT_MS } from '../config.js';
-import { one, run } from '../db.js';
+import { BILLING_INTERVAL_MS, ICE_SERVERS, LOW_BALANCE_MINUTES, RING_TIMEOUT_MS, SAMPLE_CALL } from '../config.js';
+import { one, run, tx } from '../db.js';
 import { affordableMinutes, chargeMinute } from '../billing.js';
-import { isMatched } from '../connections.js';
+import { getGuess, isMatched, nameKnown } from '../connections.js';
 import { emitToUser, isOnline } from './hub.js';
 import { hostRate, isBlockedEitherWay, publicView } from '../util.js';
 
@@ -24,6 +24,7 @@ function summary(callId) {
     billedMinutes: c.billed_minutes,
     callerPaidPaise: c.caller_paid_paise,
     hostEarnedPaise: c.host_earned_paise,
+    coinsSpent: c.coins_spent,
     startedAt: c.started_at,
     endedAt: c.ended_at,
     endReason: c.end_reason,
@@ -35,6 +36,7 @@ export function endCall(callId, reason, { status } = {}) {
   if (!live) return;
   clearTimeout(live.ringTimer);
   clearInterval(live.billTimer);
+  clearTimeout(live.sampleTimer);
   calls.delete(callId);
   userCall.delete(live.callerId);
   userCall.delete(live.calleeId);
@@ -66,6 +68,23 @@ function billNextMinute(live) {
   return true;
 }
 
+/** Take the sample-call coins from the caller, only once the call is accepted. */
+function spendSampleCoins(live) {
+  return tx(() => {
+    const { coins } = one('SELECT coins FROM users WHERE id = ?', live.callerId);
+    if (coins < SAMPLE_CALL.coins) return false;
+    run('UPDATE users SET coins = coins - ? WHERE id = ?', SAMPLE_CALL.coins, live.callerId);
+    run('UPDATE calls SET coins_spent = ? WHERE id = ?', SAMPLE_CALL.coins, live.id);
+    run(
+      "INSERT INTO transactions (user_id, account, type, amount_paise, ref_type, ref_id) VALUES (?, 'coins', 'sample_call', ?, 'call', ?)",
+      live.callerId,
+      -SAMPLE_CALL.coins,
+      live.id,
+    );
+    return true;
+  });
+}
+
 export function registerCallHandlers(io, socket) {
   const me = socket.data.user;
 
@@ -74,11 +93,14 @@ export function registerCallHandlers(io, socket) {
       const callee = one('SELECT * FROM users WHERE id = ? AND is_banned = 0', Number(to));
       if (!callee || callee.id === me.id) return ack({ error: 'User not found' });
       if (!['audio', 'video'].includes(media)) return ack({ error: 'Invalid call type' });
-      if (!['paid', 'free'].includes(mode)) return ack({ error: 'Invalid call mode' });
+      if (!['paid', 'free', 'sample'].includes(mode)) return ack({ error: 'Invalid call mode' });
       if (isBlockedEitherWay(me.id, callee.id)) return ack({ error: 'You cannot call this person' });
       if (isBusy(me.id)) return ack({ error: 'You are already in a call' });
-      if (!isOnline(callee.id)) return ack({ error: `${callee.name} is offline` });
-      if (isBusy(callee.id)) return ack({ error: `${callee.name} is on another call` });
+      // Don't leak a name the caller hasn't guessed yet.
+      const known = nameKnown(me.id, callee);
+      const label = known ? callee.name : 'This person';
+      if (!isOnline(callee.id)) return ack({ error: `${label} is offline right now` });
+      if (isBusy(callee.id)) return ack({ error: `${label} is on another call` });
 
       let rate = { rateKey: null, paisePerMinute: 0 };
       if (mode === 'paid') {
@@ -87,6 +109,19 @@ export function registerCallHandlers(io, socket) {
         if (affordableMinutes(me.id, rate.rateKey, rate.paisePerMinute) < 1) {
           return ack({ error: 'Not enough balance. Add money or buy a package.', code: 'insufficient_balance' });
         }
+      } else if (mode === 'sample') {
+        if (isMatched(me.id, callee.id)) return ack({ error: 'You are matched, so calls are free. Use the call button in your chat.' });
+        if (one('SELECT coins FROM users WHERE id = ?', me.id).coins < SAMPLE_CALL.coins) {
+          return ack({ error: `You need 🪙 ${SAMPLE_CALL.coins} for a sample call. Guess names in Discover to earn coins.`, code: 'insufficient_coins' });
+        }
+        const recent = one(
+          `SELECT 1 FROM calls WHERE caller_id = ? AND callee_id = ? AND mode = 'sample' AND coins_spent > 0
+           AND created_at > datetime('now', ?)`,
+          me.id,
+          callee.id,
+          `-${SAMPLE_CALL.perPersonHours} hours`,
+        );
+        if (recent) return ack({ error: `You already had a sample call with ${label} today. Like them to match and talk free!` });
       } else if (!isMatched(me.id, callee.id)) {
         return ack({ error: 'You can call for free once you both like each other' });
       }
@@ -123,13 +158,15 @@ export function registerCallHandlers(io, socket) {
         media,
         mode,
         rate: mode === 'paid' ? rate : null,
+        limitSeconds: mode === 'sample' ? SAMPLE_CALL.seconds : null,
       });
       ack({
         ok: true,
         callId,
         iceServers: ICE_SERVERS,
-        callee: publicView(callee),
+        callee: publicView(callee, { hideName: !known, mask: getGuess(me.id, callee.id)?.mask ?? null }),
         rate: mode === 'paid' ? rate : null,
+        limitSeconds: mode === 'sample' ? SAMPLE_CALL.seconds : null,
       });
     } catch (err) {
       console.error('call:start failed', err);
@@ -151,6 +188,13 @@ export function registerCallHandlers(io, socket) {
     if (live.mode === 'paid') {
       if (!billNextMinute(live)) return ack({ error: 'Caller has insufficient balance' });
       live.billTimer = setInterval(() => billNextMinute(live), BILLING_INTERVAL_MS);
+    }
+    if (live.mode === 'sample') {
+      if (!spendSampleCoins(live)) {
+        endCall(live.id, 'insufficient_coins');
+        return ack({ error: 'The caller no longer has enough coins' });
+      }
+      live.sampleTimer = setTimeout(() => endCall(live.id, 'time_up'), SAMPLE_CALL.seconds * 1000);
     }
     io.to(live.callerSocket).emit('call:accepted', { callId: live.id });
     ack({ ok: true, iceServers: ICE_SERVERS });

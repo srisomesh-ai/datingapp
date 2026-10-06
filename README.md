@@ -7,6 +7,7 @@ This is a web app for finding a soulmate or a friend, built mobile-first. It has
    - **Wrong:** no coin and no message, but you can still send a plain like.
    - The other person sees your like and message under **Likes you** and can like back or pass. Liking each other is a **match**, which opens full chat and free calls.
    - Decoy names have the same gender and prefer the same first letter, so the visible letters are the clue. Coins are capped per day (`dailyCoinLimit`) to stop farming.
+   - **Spend 🪙 10 on a 1-minute sample call** (voice or video) with anyone: from a Discover card after guessing, on a Find a Friend card, or in a chat while you wait for a like back. Coins are taken only if they **accept**; declined, missed or failed calls are free. The call ends by itself after 60 seconds, with a countdown on screen. There's one sample call per person per 24 hours, and none between matches, who already call free.
 2. **Find a Friend (paid voice and video calls).** Users can turn on *Friend mode* and go "available". Anyone can then voice or video call them, paying per minute:
 
    | Friend    | Pay-as-you-go           | Packages (from wallet, valid 90 days)                  |
@@ -22,7 +23,7 @@ Matches can also voice and video call each other **for free** from the chat.
 
 - Email signup with an 18+ check, profiles with a hobbies/likes catalog and optional fun facts
 - The answer never reaches the client before you guess: the server sends only the masked name and the options, and hides the name everywhere else (profile and chat lookups) until you've guessed or they've liked you.
-- Coins ledger (shown in the top bar and Wallet). What coins can be spent on is still to be decided.
+- Coins ledger shown in the top bar and Wallet: earned by guessing names, spent on sample calls (`SAMPLE_CALL` in `server/src/config.js`).
 - Realtime chat over Socket.IO, with unread counts and read receipts
 - 1:1 WebRTC voice and video calls (mute, camera on/off, front/back camera switch, ringtone, live cost meter, low-balance warning, end-of-call summary)
 - Wallet: top-ups through Razorpay (UPI, cards, netbanking), call packages, transaction ledger, friend earnings and UPI withdrawals
@@ -52,7 +53,7 @@ Without Razorpay keys, payments run in **mock mode**: "Pay" credits the wallet i
 
 ## Static demo (for layout testing on plain HTML hosting)
 
-`npm --prefix client run build:demo` builds `client/dist-demo/`. This is a version of the app that needs **no server**. A fake backend runs in the browser, with 10 demo people, auto-replies in chat, the real guess-the-name rules, people who like you back, a wallet and packages. Calls connect over real WebRTC to a local animated "demo video" peer, and the yellow bar's **Test incoming call** button rings you. In the demo, one billed minute lasts 10 seconds so you can watch the meter move. Data is kept in that browser's localStorage, and logging out resets it.
+`npm --prefix client run build:demo` builds `client/dist-demo/`. This is a version of the app that needs **no server**. A fake backend runs in the browser, with 10 demo people, auto-replies in chat, the real guess-the-name rules, people who like you back, 🪙 10 to try a sample call, a wallet and packages. Calls connect over real WebRTC to a local animated "demo video" peer, and the yellow bar's **Test incoming call** button rings you. In the demo, one billed minute lasts 10 seconds so you can watch the meter move. Data is kept in that browser's localStorage, and logging out resets it.
 
 A ready-built copy is committed in **`demo-site/`**, so you can download it straight from GitHub. To use it, upload the *contents* of `demo-site/` (or `client/dist-demo/` after building) (including `.htaccess`, which makes deep links work on Apache/LiteSpeed) to your hosting's `public_html`. Camera and mic need HTTPS. The normal `npm run build` contains none of the demo code.
 

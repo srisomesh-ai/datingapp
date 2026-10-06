@@ -1,6 +1,6 @@
 // Fake Socket.IO client for the static demo. Calls connect to a local "peer" that
 // sends an animated video, so the real WebRTC call screen can be tested end to end.
-import { PLATFORM_FEE_PERCENT } from '../../../server/src/config.js';
+import { PLATFORM_FEE_PERCENT, SAMPLE_CALL } from '../../../server/src/config.js';
 import { affordable, demoNextId, demoNow, demoPerson, demoPublicView, demoState, ledger, rateFor, save } from './demoApi.js';
 
 // One billed minute lasts this long in the demo so the meter visibly moves.
@@ -113,10 +113,10 @@ function endCall(reason, status) {
   const s = demoState();
   s.calls.unshift({
     id: c.id, direction: c.role === 'caller' ? 'outgoing' : 'incoming', other: demoPublicView(c.other), media: c.media, mode: c.mode,
-    status: finalStatus, minutes: c.minutes, amountPaise: c.role === 'caller' ? -c.paid : c.earned, endReason: reason, createdAt: demoNow(),
+    status: finalStatus, minutes: c.minutes, amountPaise: c.role === 'caller' ? -c.paid : c.earned, coinsSpent: c.coinsSpent ?? 0, endReason: reason, createdAt: demoNow(),
   });
   save();
-  emitToClient('call:ended', { callId: c.id, status: finalStatus, mode: c.mode, billedMinutes: c.minutes, callerPaidPaise: c.paid, hostEarnedPaise: c.earned, endReason: reason, reason });
+  emitToClient('call:ended', { callId: c.id, status: finalStatus, mode: c.mode, billedMinutes: c.minutes, callerPaidPaise: c.paid, hostEarnedPaise: c.earned, coinsSpent: c.coinsSpent ?? 0, endReason: reason, reason });
 }
 
 async function handle(event, payload = {}, ack = () => {}) {
@@ -130,12 +130,30 @@ async function handle(event, payload = {}, ack = () => {}) {
       rate = rateFor(other.gender);
       if (affordable(rate) < 1) return ack({ error: 'Not enough balance. Add money or buy a package.', code: 'insufficient_balance' });
     }
-    live = { id: demoNextId(), role: 'caller', other, media: payload.media, mode: payload.mode, rate, minutes: 0, paid: 0, earned: 0, active: false };
-    ack({ ok: true, callId: live.id, iceServers: [], callee: demoPublicView(other), rate });
+    const s = demoState();
+    const sample = payload.mode === 'sample';
+    if (sample) {
+      if (s.calls.some((c) => c.other.id === other.id && c.mode === 'sample' && c.coinsSpent)) {
+        return ack({ error: 'You already had a sample call with them today. Like them to match and talk free!' });
+      }
+      if (s.coins < SAMPLE_CALL.coins) {
+        return ack({ error: `You need 🪙 ${SAMPLE_CALL.coins} for a sample call. Guess names in Discover to earn coins.`, code: 'insufficient_coins' });
+      }
+    }
+    live = { id: demoNextId(), role: 'caller', other, media: payload.media, mode: payload.mode, rate, minutes: 0, paid: 0, earned: 0, coinsSpent: 0, active: false };
+    const limitSeconds = sample ? SAMPLE_CALL.seconds : null;
+    ack({ ok: true, callId: live.id, iceServers: [], callee: demoPublicView(other), rate, limitSeconds });
     live.timer = setTimeout(() => {
       live.active = true;
       emitToClient('call:accepted', { callId: live.id });
-      startBilling();
+      if (sample) {
+        // Coins are taken only now that the call was accepted.
+        s.coins -= SAMPLE_CALL.coins;
+        live.coinsSpent = SAMPLE_CALL.coins;
+        ledger('coins', 'sample_call', -SAMPLE_CALL.coins);
+        save();
+        live.timer = setTimeout(() => endCall('time_up'), SAMPLE_CALL.seconds * 1000);
+      } else startBilling();
     }, 2500);
     return undefined;
   }

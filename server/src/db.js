@@ -8,7 +8,7 @@ if (DB_FILE !== ':memory:') fs.mkdirSync(path.dirname(DB_FILE), { recursive: tru
 export const db = new DatabaseSync(DB_FILE);
 db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000;');
 
-db.exec(`
+const schemaSql = `
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT NOT NULL UNIQUE,
@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS calls (
   caller_id INTEGER NOT NULL REFERENCES users(id),
   callee_id INTEGER NOT NULL REFERENCES users(id),
   media TEXT NOT NULL CHECK (media IN ('audio','video')),
-  mode TEXT NOT NULL CHECK (mode IN ('paid','free')),
+  mode TEXT NOT NULL CHECK (mode IN ('paid','free','sample')),
   status TEXT NOT NULL DEFAULT 'ringing' CHECK (status IN ('ringing','active','ended','missed','rejected','failed')),
   rate_key TEXT,
   rate_paise_per_min INTEGER NOT NULL DEFAULT 0,
@@ -114,6 +114,7 @@ CREATE TABLE IF NOT EXISTS calls (
   caller_paid_paise INTEGER NOT NULL DEFAULT 0,
   host_earned_paise INTEGER NOT NULL DEFAULT 0,
   platform_fee_paise INTEGER NOT NULL DEFAULT 0,
+  coins_spent INTEGER NOT NULL DEFAULT 0,
   end_reason TEXT,
   started_at TEXT,
   ended_at TEXT,
@@ -170,11 +171,28 @@ CREATE TABLE IF NOT EXISTS withdrawals (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   processed_at TEXT
 );
-`);
+`;
+db.exec(schemaSql);
 
 // Columns added after the first release, for databases created before them.
 const userCols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
 if (!userCols.includes('coins')) db.exec('ALTER TABLE users ADD COLUMN coins INTEGER NOT NULL DEFAULT 0');
+// calls: allow mode 'sample' and track coins (SQLite can't alter a CHECK, so rebuild the table once).
+const callsSql = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'calls'").get()?.sql ?? '';
+if (!callsSql.includes("'sample'")) {
+  const cols = db.prepare('PRAGMA table_info(calls)').all().map((c) => c.name).join(', ');
+  db.exec(`
+    PRAGMA foreign_keys = OFF;
+    BEGIN;
+    ALTER TABLE calls RENAME TO calls_old;
+    ${schemaSql.match(/CREATE TABLE IF NOT EXISTS calls \([\s\S]*?\n\);/)[0]}
+    INSERT INTO calls (${cols}) SELECT ${cols} FROM calls_old;
+    DROP TABLE calls_old;
+    COMMIT;
+    PRAGMA foreign_keys = ON;
+  `);
+}
+  db.exec(schemaSql); // recreate the calls indexes
 
 /** Run fn inside a write transaction; rolls back on throw. Not re-entrant. */
 export function tx(fn) {

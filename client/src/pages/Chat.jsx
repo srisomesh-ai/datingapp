@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext.jsx';
 import { useCall } from '../context/CallContext.jsx';
 import Avatar from '../components/Avatar.jsx';
+import SampleCall from '../components/SampleCall.jsx';
 import { api, displayName, timeAgo } from '../lib/api.js';
 
 export default function Chat() {
@@ -115,10 +116,15 @@ export default function Chat() {
           <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Type a message" maxLength={2000} />
           <button className="btn" disabled={!text.trim()}>Send</button>
         </form>
-      ) : info.waitingForLikeBack ? (
-        <p className="muted center pad">❤️ Like sent. You can chat once {displayName(other)} likes you back.</p>
       ) : (
-        <p className="muted center pad">You can chat once you both like each other.</p>
+        <div className="pad stack center">
+          <p className="muted">
+            {info.waitingForLikeBack
+              ? `❤️ Like sent. You can chat once ${displayName(other)} likes you back.`
+              : 'You can chat once you both like each other.'}
+          </p>
+          <SampleCall user={other} />
+        </div>
       )}
     </div>
   );
