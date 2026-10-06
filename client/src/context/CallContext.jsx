@@ -1,6 +1,7 @@
 // Voice/video calling over WebRTC. The server relays signaling and handles billing.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppContext.jsx';
+import { api } from '../lib/api.js';
 
 const CallContext = createContext(null);
 export const useCall = () => useContext(CallContext);
@@ -210,7 +211,9 @@ export function CallProvider({ children }) {
       return setCall(IDLE);
     }
     // Create the peer before accepting so the caller's offer always finds it.
-    createPeer(c.callId, meta?.iceServers);
+    // Fresh ICE config carries this user's short-lived TURN credentials.
+    const ice = await api('/ice').catch(() => null);
+    createPeer(c.callId, ice?.iceServers ?? meta?.iceServers);
     socket.emit('call:accept', { callId: c.callId }, (res) => {
       if (res?.error) {
         cleanupMedia();

@@ -55,18 +55,20 @@ Without Razorpay keys, payments run in **mock mode**: "Pay" credits the wallet i
 
 `npm --prefix client run build:demo` builds `client/dist-demo/`. This is a version of the app that needs **no server**. A fake backend runs in the browser, with 10 demo people, auto-replies in chat, the real guess-the-name rules, people who like you back, 🪙 10 to try a sample call, a wallet and packages. Calls connect over real WebRTC to a local animated "demo video" peer, and the yellow bar's **Test incoming call** button rings you. In the demo, one billed minute lasts 10 seconds so you can watch the meter move. Data is kept in that browser's localStorage, and logging out resets it.
 
-A ready-built copy is committed in **`demo-site/`**, so you can download it straight from GitHub. To use it, upload the *contents* of `demo-site/` (or `client/dist-demo/` after building) (including `.htaccess`, which makes deep links work on Apache/LiteSpeed) to your hosting's `public_html`. Camera and mic need HTTPS. The normal `npm run build` contains none of the demo code.
+This was used for layout testing on static hosting and isn't needed for the real app; the normal `npm run build` contains none of the demo code.
 
-## Production
+## Go live (VPS)
 
-```bash
-npm run build && NODE_ENV=production JWT_SECRET=... RAZORPAY_KEY_ID=... RAZORPAY_KEY_SECRET=... npm start
-```
+Follow **[deploy/README.md](deploy/README.md)**. One command (`deploy/setup.sh`) installs and configures a fresh Ubuntu VPS:
 
-The server serves the built client from `client/dist`. See `server/.env.example` for every setting. Before launch:
+- Node.js 22 and the app as a service
+- HTTPS through Caddy, on a free `<ip>.sslip.io` address until you have a domain
+- a TURN relay (coturn) so calls work on mobile data, with short-lived per-user credentials
+- the firewall
+- daily database backups
 
-- **TURN server.** STUN alone fails for many users on mobile data or behind strict NATs. Run coturn or use a hosted TURN service, and set `ICE_SERVERS`.
-- **HTTPS** is required for camera and mic access.
+Before a public launch:
+
 - **Single instance.** Call timers and presence live in memory, so run one server process. Scaling out would need a Socket.IO Redis adapter plus shared call state.
 - **Payouts.** Withdrawals are marked paid manually by an admin. Automate them with RazorpayX if needed.
 - **Compliance.** Paid companionship calls need clear content and safety policies, KYC for friends who earn, and GST/TDS treatment of the platform fee and payouts. Confirm with a CA or lawyer.

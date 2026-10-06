@@ -10,6 +10,8 @@ process.env.UPLOAD_DIR = tmp;
 process.env.BILLING_INTERVAL_MS = '150';
 process.env.RING_TIMEOUT_MS = '2000';
 process.env.SAMPLE_CALL_SECONDS = '1';
+process.env.TURN_URLS = 'turn:turn.example.test:3478?transport=udp,turn:turn.example.test:3478?transport=tcp';
+process.env.TURN_SECRET = 'test-turn-secret';
 
 const { createServer } = await import('../src/app.js');
 const { db } = await import('../src/db.js');
@@ -330,6 +332,21 @@ test('sample call: 10 coins for 1 minute with anyone, charged only if they accep
     aSock.close();
     rSock.close();
   }
+});
+
+test('TURN credentials are per-user, short-lived and never in the public meta', async () => {
+  const crypto = await import('node:crypto');
+  assert.equal((await api(null, 'GET', '/api/ice')).status, 401);
+  const meta = await api(null, 'GET', '/api/meta');
+  assert.equal(JSON.stringify(meta.body).includes('turn:'), false);
+  const { body } = await api(ravi.token, 'GET', '/api/ice');
+  const turn = body.iceServers.find((s) => [].concat(s.urls).some((u) => u.startsWith('turn:')));
+  assert.ok(turn);
+  const [expiry, uid] = turn.username.split(':').map(Number);
+  assert.equal(uid, ravi.id);
+  assert.ok(expiry > Date.now() / 1000 + 3600);
+  // Same formula coturn uses with use-auth-secret.
+  assert.equal(turn.credential, crypto.createHmac('sha1', 'test-turn-secret').update(turn.username).digest('base64'));
 });
 
 test('friends withdraw earnings', async () => {

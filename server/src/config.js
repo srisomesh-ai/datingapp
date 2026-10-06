@@ -85,6 +85,12 @@ export const ICE_SERVERS = env.ICE_SERVERS
   ? JSON.parse(env.ICE_SERVERS)
   : [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
 
+// TURN relay (coturn with `use-auth-secret`) so calls connect on mobile data / strict NATs.
+// Each logged-in user gets short-lived credentials; the secret never leaves the server.
+export const TURN_URLS = (env.TURN_URLS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+export const TURN_SECRET = env.TURN_SECRET ?? '';
+export const TURN_TTL_SECONDS = 6 * 3600;
+
 // ---- Guess the name -----------------------------------------------------
 
 export const NAME_GUESS = {

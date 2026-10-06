@@ -133,6 +133,7 @@ route('GET', '/meta', () => ({
   platformFeePercent: PLATFORM_FEE_PERCENT, payments: { mode: 'mock', razorpayKeyId: null }, iceServers: ICE_SERVERS, demo: true,
 }));
 
+route('GET', '/ice', () => ({ iceServers: [] }));
 route('GET', '/auth/me', () => ({ user: selfView(requireMe()) }));
 
 function createMe(b) {

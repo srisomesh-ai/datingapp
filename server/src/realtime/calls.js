@@ -1,9 +1,10 @@
 // Call lifecycle + WebRTC signaling relay + per-minute billing timers.
 // Media flows peer-to-peer (WebRTC); the server only relays SDP/ICE and bills.
-import { BILLING_INTERVAL_MS, ICE_SERVERS, LOW_BALANCE_MINUTES, RING_TIMEOUT_MS, SAMPLE_CALL } from '../config.js';
+import { BILLING_INTERVAL_MS, LOW_BALANCE_MINUTES, RING_TIMEOUT_MS, SAMPLE_CALL } from '../config.js';
 import { one, run, tx } from '../db.js';
 import { affordableMinutes, chargeMinute } from '../billing.js';
 import { getGuess, isMatched, nameKnown } from '../connections.js';
+import { iceServersFor } from '../ice.js';
 import { emitToUser, isOnline } from './hub.js';
 import { hostRate, isBlockedEitherWay, publicView } from '../util.js';
 
@@ -163,7 +164,7 @@ export function registerCallHandlers(io, socket) {
       ack({
         ok: true,
         callId,
-        iceServers: ICE_SERVERS,
+        iceServers: iceServersFor(me.id),
         callee: publicView(callee, { hideName: !known, mask: getGuess(me.id, callee.id)?.mask ?? null }),
         rate: mode === 'paid' ? rate : null,
         limitSeconds: mode === 'sample' ? SAMPLE_CALL.seconds : null,
@@ -197,7 +198,7 @@ export function registerCallHandlers(io, socket) {
       live.sampleTimer = setTimeout(() => endCall(live.id, 'time_up'), SAMPLE_CALL.seconds * 1000);
     }
     io.to(live.callerSocket).emit('call:accepted', { callId: live.id });
-    ack({ ok: true, iceServers: ICE_SERVERS });
+    ack({ ok: true, iceServers: iceServersFor(me.id) });
   });
 
   socket.on('call:reject', ({ callId } = {}) => {
