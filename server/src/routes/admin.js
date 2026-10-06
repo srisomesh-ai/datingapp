@@ -10,7 +10,10 @@ router.get('/stats', (_req, res) => {
   res.json({
     users: one('SELECT COUNT(*) AS n FROM users').n,
     friends: one('SELECT COUNT(*) AS n FROM users WHERE is_host = 1').n,
-    puzzlesSolved: one("SELECT COUNT(*) AS n FROM puzzle_attempts WHERE status = 'solved'").n,
+    namesGuessed: one("SELECT COUNT(*) AS n FROM name_guesses WHERE status = 'correct'").n,
+    likes: one('SELECT COUNT(*) AS n FROM likes').n,
+    matches: one('SELECT COUNT(*) AS n FROM likes a JOIN likes b ON b.from_id = a.to_id AND b.to_id = a.from_id WHERE a.from_id < a.to_id').n,
+    coinsEarned: one('SELECT COALESCE(SUM(coins_awarded), 0) AS n FROM name_guesses').n,
     paidCalls: one("SELECT COUNT(*) AS n FROM calls WHERE mode = 'paid' AND billed_minutes > 0").n,
     paidMinutes: one("SELECT COALESCE(SUM(billed_minutes), 0) AS n FROM calls WHERE mode = 'paid'").n,
     grossCallPaise: one('SELECT COALESCE(SUM(caller_paid_paise), 0) AS n FROM calls').n,

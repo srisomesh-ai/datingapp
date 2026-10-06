@@ -131,7 +131,7 @@ async function handle(event, payload = {}, ack = () => {}) {
       if (affordable(rate) < 1) return ack({ error: 'Not enough balance. Add money or buy a package.', code: 'insufficient_balance' });
     }
     live = { id: demoNextId(), role: 'caller', other, media: payload.media, mode: payload.mode, rate, minutes: 0, paid: 0, earned: 0, active: false };
-    ack({ ok: true, callId: live.id, iceServers: [], callee: demoPublicView(other), canSeePhoto: true, rate });
+    ack({ ok: true, callId: live.id, iceServers: [], callee: demoPublicView(other), rate });
     live.timer = setTimeout(() => {
       live.active = true;
       emitToClient('call:accepted', { callId: live.id });
@@ -181,7 +181,7 @@ export function simulateIncomingCall() {
   const rate = paid ? rateFor(s.me.gender) : null;
   live = { id: demoNextId(), role: 'callee', other, media: 'video', mode: paid ? 'paid' : 'free', rate, minutes: 0, paid: 0, earned: 0, active: false };
   live.timer = setTimeout(() => endCall('no_answer', 'missed'), 30_000);
-  emitToClient('call:incoming', { callId: live.id, from: demoPublicView(other), canSeePhoto: true, media: 'video', mode: live.mode, rate });
+  emitToClient('call:incoming', { callId: live.id, from: demoPublicView(other), media: 'video', mode: live.mode, rate });
 }
 
 export function createDemoSocket() {

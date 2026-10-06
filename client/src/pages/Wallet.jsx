@@ -10,7 +10,14 @@ const TX_LABEL = {
   call_earning: 'Call earnings',
   withdrawal: 'Withdrawal',
   withdrawal_reversed: 'Withdrawal reversed',
+  name_guess: 'Guessed a name',
 };
+
+function txAmount(t) {
+  if (t.account === 'package') return `${t.amountPaise} min`;
+  if (t.account === 'coins') return `${t.amountPaise > 0 ? '+' : ''}${t.amountPaise} 🪙`;
+  return `${t.amountPaise > 0 ? '+' : '−'}${rupees(Math.abs(t.amountPaise))}`;
+}
 
 function loadRazorpay() {
   if (window.Razorpay) return Promise.resolve();
@@ -98,10 +105,14 @@ export default function Wallet() {
           <div className="big">{rupees(w.walletPaise)}</div>
         </div>
         <div>
-          <small className="muted">Package minutes</small>
-          <div>👩 {w.packageMinutes.female ?? 0} · 👨 {w.packageMinutes.male ?? 0}</div>
+          <small className="muted">Coins</small>
+          <div className="big">🪙 {w.coins}</div>
         </div>
       </div>
+      <p className="fine">
+        Package minutes: 👩 {w.packageMinutes.female ?? 0} · 👨 {w.packageMinutes.male ?? 0}. Earn 🪙 1 for every name you guess
+        right in Discover.
+      </p>
 
       <section className="card stack">
         <h3>Add money</h3>
@@ -193,7 +204,7 @@ export default function Wallet() {
               {TX_LABEL[t.type] ?? t.type} <span className="muted">· {timeAgo(t.createdAt)}</span>
             </span>
             <span className={t.amountPaise < 0 ? 'neg' : 'pos'}>
-              {t.account === 'package' ? `${t.amountPaise} min` : `${t.amountPaise > 0 ? '+' : '−'}${rupees(Math.abs(t.amountPaise))}`}
+              {txAmount(t)}
             </span>
           </div>
         ))}

@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { Server } from 'socket.io';
-import { CATALOG, ICE_SERVERS, PACKAGES, PAYG_RATES, PAYMENTS_MODE, PLATFORM_FEE_PERCENT, PROFILE_MIN, PUZZLE, RAZORPAY_KEY_ID } from './config.js';
+import { CATALOG, ICE_SERVERS, PACKAGES, PAYG_RATES, PAYMENTS_MODE, PLATFORM_FEE_PERCENT, NAME_GUESS, PROFILE_MIN, RAZORPAY_KEY_ID } from './config.js';
 import { run } from './db.js';
 import { HttpError, userFromToken, COOKIE } from './util.js';
 import { addSocket, removeSocket, setIo } from './realtime/hub.js';
@@ -32,7 +32,7 @@ export function createServer() {
     res.json({
       catalog: CATALOG,
       profileMin: PROFILE_MIN,
-      puzzle: PUZZLE,
+      nameGuess: NAME_GUESS,
       rates: PAYG_RATES,
       packages: PACKAGES,
       platformFeePercent: PLATFORM_FEE_PERCENT,

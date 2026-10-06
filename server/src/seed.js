@@ -4,13 +4,12 @@ import bcrypt from 'bcryptjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import jpeg from 'jpeg-js';
-import { CATALOG, PUZZLE, UPLOAD_DIR } from './config.js';
+import { CATALOG, UPLOAD_DIR } from './config.js';
 import { one, run } from './db.js';
 import { shuffle } from './util.js';
 import { ledger } from './billing.js';
 
 const SIZE = 600;
-const TILE = SIZE / PUZZLE.grid;
 
 function avatar(seed) {
   const data = Buffer.alloc(SIZE * SIZE * 4);
@@ -26,7 +25,7 @@ function avatar(seed) {
   for (let y = 0; y < SIZE; y++) {
     for (let x = 0; x < SIZE; x++) {
       const t = (x + y) / (2 * SIZE);
-      // A simple "head and shoulders" silhouette so the reveal feels like a portrait.
+      // A simple "head and shoulders" silhouette as a portrait placeholder.
       const head = (x - 300) ** 2 + (y - 240) ** 2 < 110 ** 2;
       const body = (x - 300) ** 2 / 200 ** 2 + (y - 600) ** 2 / 190 ** 2 < 1;
       const i = (y * SIZE + x) * 4;
@@ -38,23 +37,6 @@ function avatar(seed) {
     }
   }
   return data;
-}
-
-function crop(src, sx, sy, w, h) {
-  const out = Buffer.alloc(w * h * 4);
-  for (let y = 0; y < h; y++) src.copy(out, y * w * 4, ((sy + y) * SIZE + sx) * 4, ((sy + y) * SIZE + sx + w) * 4);
-  return out;
-}
-
-function downscale(src, n) {
-  const out = Buffer.alloc(n * n * 4);
-  const step = SIZE / n;
-  for (let y = 0; y < n; y++)
-    for (let x = 0; x < n; x++) {
-      const i = (Math.floor(y * step + step / 2) * SIZE + Math.floor(x * step + step / 2)) * 4;
-      src.copy(out, (y * n + x) * 4, i, i + 4);
-    }
-  return out;
 }
 
 const enc = (data, w, h) => jpeg.encode({ data, width: w, height: h }, 82).data;
@@ -105,12 +87,6 @@ PEOPLE.forEach(([name, gender, city, bio, isHost], idx) => {
   fs.mkdirSync(dir, { recursive: true });
   const img = avatar(idx + 1);
   fs.writeFileSync(path.join(dir, 'full.jpg'), enc(img, SIZE, SIZE));
-  fs.writeFileSync(path.join(dir, 'blur.jpg'), enc(downscale(img, 12), 12, 12));
-  for (let t = 0; t < PUZZLE.grid ** 2; t++) {
-    const x = (t % PUZZLE.grid) * TILE;
-    const y = Math.floor(t / PUZZLE.grid) * TILE;
-    fs.writeFileSync(path.join(dir, `tile${t}.jpg`), enc(crop(img, x, y, TILE, TILE), TILE, TILE));
-  }
   created++;
 });
 console.log(`Seeded ${created} demo users. Log in as e.g. ananya@demo.app / password123 (each has ₹500 in wallet).`);

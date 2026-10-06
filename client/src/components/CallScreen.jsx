@@ -44,13 +44,12 @@ export default function CallScreen() {
   const peer = call.peer ?? {};
   const isVideo = call.media === 'video';
   const paid = call.mode === 'paid';
-  const avatarUnlocked = Boolean(call.canSeePhoto);
 
   if (call.phase === 'incoming') {
     return (
       <div className="call-overlay">
         <div className="call-center">
-          <Avatar user={peer} unlocked={avatarUnlocked} size={120} />
+          <Avatar user={peer} size={120} />
           <h2>{peer.name}</h2>
           <p className="muted">
             Incoming {isVideo ? 'video' : 'voice'} call{paid ? ' · paid friend call' : ''}
@@ -74,7 +73,7 @@ export default function CallScreen() {
     return (
       <div className="call-overlay">
         <div className="call-center">
-          <Avatar user={peer} unlocked={avatarUnlocked} size={96} />
+          <Avatar user={peer} size={96} />
           <h2>{END_REASONS[s.reason] ?? 'Call ended'}</h2>
           {s.billedMinutes > 0 && (
             <div className="card summary">
@@ -116,7 +115,7 @@ export default function CallScreen() {
 
       {(!isVideo || call.phase === 'outgoing' || !remoteStream) && (
         <div className="call-center">
-          <Avatar user={peer} unlocked={avatarUnlocked} size={120} />
+          <Avatar user={peer} size={120} />
           <p className="muted">{call.phase === 'outgoing' ? `Calling ${peer.name}…` : remoteStream ? 'Connected' : 'Connecting…'}</p>
         </div>
       )}

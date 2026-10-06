@@ -24,7 +24,7 @@ function Choice({ options, value, onChange }) {
   return (
     <div className="chips">
       {options.map((o) => (
-        <button type="button" key={o} className={`chip ${value === o ? 'on' : ''}`} onClick={() => onChange(o)}>
+        <button type="button" key={o} className={`chip ${value === o ? 'on' : ''}`} onClick={() => onChange(value === o ? null : o)}>
           {o}
         </button>
       ))}
@@ -68,7 +68,7 @@ export default function Profile() {
     if (!file) return;
     setUploading(true);
     try {
-      const { form: data, previewUrl } = await preparePhoto(file, meta.puzzle.grid);
+      const { form: data, previewUrl } = await preparePhoto(file);
       setPreview(previewUrl);
       const { user: u } = await api('/profile/photo', { method: 'POST', body: data });
       setUser(u);
@@ -85,7 +85,6 @@ export default function Profile() {
     const missing = [];
     if (form.hobbies.length < meta.profileMin.hobbies) missing.push(`at least ${meta.profileMin.hobbies} hobbies`);
     if (form.likes.length < meta.profileMin.likes) missing.push(`at least ${meta.profileMin.likes} likes`);
-    for (const k of ['favoriteCuisine', 'weekendStyle', 'chronotype', 'dreamDestination']) if (!form[k]) missing.push('all the quick questions');
     if (missing.length) return toast(`Please pick ${[...new Set(missing)].join(', ')}`, 'warn');
     setSaving(true);
     try {
@@ -117,7 +116,7 @@ export default function Profile() {
       <h2>{user.profileComplete ? 'Your profile' : 'Set up your profile'}</h2>
       {!user.profileComplete && (
         <p className="muted">
-          Your hobbies and likes become the puzzle others solve to reveal your photo. They're only shown to people who get them right.
+          People see your photo and profile but not your name. They guess it to earn a coin and send you a message with their like.
         </p>
       )}
 
@@ -130,7 +129,7 @@ export default function Profile() {
             <input type="file" accept="image/*" hidden onChange={onPhoto} disabled={uploading} />
           </label>
         </div>
-        <p className="fine">Use a clear photo of your face. It's split into {meta.puzzle.grid * meta.puzzle.grid} puzzle tiles.</p>
+        <p className="fine">Use a clear photo of your face.</p>
       </section>
 
       <section className="card stack">
@@ -167,7 +166,7 @@ export default function Profile() {
       </section>
 
       <section className="card stack">
-        <h3>Quick questions</h3>
+        <h3>Fun facts <small className="muted">(optional)</small></h3>
         <p className="label">Favourite cuisine</p>
         <Choice options={c.cuisines} value={form.favoriteCuisine} onChange={set('favoriteCuisine')} />
         <p className="label">Perfect weekend</p>

@@ -61,7 +61,7 @@ main { flex: 1; min-height: 0; overflow-y: auto; width: 100%; max-width: 560px; 
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   border: 0; border-radius: 999px; padding: 12px 20px; font: inherit; font-weight: 600; cursor: pointer;
-  background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: white; text-align: center;
+  background: linear-gradient(135deg, var(--brand), var(--brand-2)); color: white; text-align: center; white-space: nowrap;
 }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .btn.ghost { background: var(--surface-2); color: var(--text); }
@@ -102,30 +102,27 @@ main { flex: 1; min-height: 0; overflow-y: auto; width: 100%; max-width: 560px; 
 .auth-hero h1 { font-size: 2rem; margin: 8px 0; }
 .auth-hero p { color: var(--muted); }
 
-/* Puzzle board */
-.board { position: relative; aspect-ratio: 1; width: 100%; border-radius: var(--radius); overflow: hidden; background: var(--surface-2); }
-.board-blur, .board-full { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.board-blur { filter: blur(18px) saturate(1.2); transform: scale(1.15); image-rendering: pixelated; }
-.board-grid { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(var(--grid), 1fr); }
-.tile { width: 100%; height: 100%; object-fit: cover; display: block; }
-.tile-covered {
-  display: flex; align-items: center; justify-content: center; border: 1px solid #ffffff14;
-  background: linear-gradient(135deg, #2a2336ee, #3a2440dd); backdrop-filter: blur(6px);
-  font-size: 1.6rem; font-weight: 800; color: #ffffff40;
-}
-.tile-pop { animation: pop 0.6s ease; }
-@keyframes pop { from { transform: scale(0.4) rotate(-8deg); opacity: 0; } to { transform: none; opacity: 1; } }
+/* Discover card */
 .discover-card { padding: 0; overflow: hidden; }
-.discover-card .board { border-radius: 0; }
-.discover-info { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; }
-
-.progress { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
-.dot {
-  display: inline-flex; width: 26px; height: 26px; margin-right: 4px; border-radius: 50%; background: var(--surface-2);
-  align-items: center; justify-content: center; font-style: normal; font-size: 0.8rem;
+.photo-wrap { position: relative; aspect-ratio: 1; max-height: 52dvh; width: 100%; background: var(--surface-2); }
+.discover-photo { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-caption {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 40px 16px 14px;
+  background: linear-gradient(transparent, #000c); display: flex; flex-direction: column; gap: 2px;
 }
-.dot.good { background: var(--good); color: #062; }
-.dot.bad { background: var(--bad); color: #500; }
+.photo-caption h2 { font-size: 1.6rem; }
+.photo-caption h2.masked { letter-spacing: 2px; font-family: ui-monospace, 'SF Mono', Menlo, monospace; }
+.photo-caption span { color: #ffffffcc; font-size: 0.9rem; }
+.likes-you { position: absolute; top: 12px; left: 12px; background: var(--brand); color: white; font-size: 0.8rem; font-weight: 700; padding: 5px 10px; border-radius: 999px; }
+.discover-info { padding: 14px 16px 16px; }
+.small-chip { font-size: 0.78rem; padding: 5px 10px; cursor: default; }
+.grid2 { grid-template-columns: 1fr 1fr; }
+.grid2 .option { text-align: center; font-weight: 600; }
+.match-photo { width: 140px; height: 140px; border-radius: 50%; object-fit: cover; border: 3px solid var(--brand); }
+.like-card { display: flex; gap: 12px; }
+.like-card img { width: 84px; height: 104px; border-radius: 12px; object-fit: cover; flex-shrink: 0; }
+.like-message { background: var(--surface-2); border-radius: 12px; padding: 8px 10px; font-size: 0.9rem; }
+
 .options { display: grid; gap: 10px; }
 .option {
   text-align: left; background: var(--surface-2); color: var(--text); border: 2px solid transparent;
@@ -144,9 +141,7 @@ main { flex: 1; min-height: 0; overflow-y: auto; width: 100%; max-width: 560px; 
 .list-item:hover { background: var(--surface); }
 .avatar { position: relative; flex-shrink: 0; border-radius: 50%; background: var(--surface-2); }
 .avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
-.avatar-blur { filter: blur(4px); }
 .avatar-initial { display: flex; width: 100%; height: 100%; align-items: center; justify-content: center; font-weight: 700; }
-.avatar-lock { position: absolute; bottom: -2px; right: -2px; font-size: 0.75rem; }
 .avatar-online { position: absolute; top: 2px; right: 2px; width: 11px; height: 11px; border-radius: 50%; background: var(--good); border: 2px solid var(--bg); }
 .badge { background: var(--brand); color: white; font-size: 0.75rem; border-radius: 999px; padding: 2px 8px; }
 

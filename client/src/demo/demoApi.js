@@ -1,18 +1,26 @@
 // In-browser fake backend for the static demo build (VITE_DEMO=1). It mirrors the
 // real API's shapes and rules closely enough to test every screen without a server.
 import {
-  CATALOG, ICE_SERVERS, PACKAGES, PAYG_RATES, PLATFORM_FEE_PERCENT, PROFILE_MIN, PUZZLE, TILE_COUNT,
+  CATALOG, ICE_SERVERS, NAME_GUESS, PACKAGES, PAYG_RATES, PLATFORM_FEE_PERCENT, PROFILE_MIN,
 } from '../../../server/src/config.js';
-import { generateQuestions, shuffle } from '../../../server/src/puzzleQuestions.js';
+import { buildNameGuess, shuffle } from '../../../server/src/nameGuess.js';
 import { REPLIES, demoPhoto, makePeople } from './demoData.js';
 import { emitToClient } from './demoSocket.js';
 
-const KEY = 'demo-state-v1';
+const KEY = 'demo-state-v2';
 const ME = 1;
 const now = () => new Date().toISOString();
 
 function fresh() {
-  return { me: null, mePhoto: null, people: makePeople(), attempts: {}, messages: [], skips: [], blocked: [], walletPaise: 500_00, earningsPaise: 0, lots: [], tx: [{ id: 1, account: 'wallet', type: 'topup', amountPaise: 500_00, note: 'Demo credit', createdAt: now() }], calls: [], withdrawals: [], seq: 100 };
+  const people = makePeople();
+  // A couple of people have already liked you, so the Likes section has something to show.
+  const likesIn = shuffle(people).slice(0, 2).map((p, i) => ({
+    from: p.id,
+    message: i === 0 ? `Hi! I guessed your name on the first try 😄` : null,
+    at: now(),
+    declined: false,
+  }));
+  return { me: null, mePhoto: null, people, guesses: {}, likesOut: [], likesIn, coins: 0, messages: [], skips: [], blocked: [], walletPaise: 500_00, earningsPaise: 0, lots: [], tx: [{ id: 1, account: 'wallet', type: 'topup', amountPaise: 500_00, note: 'Demo credit', createdAt: now() }], calls: [], withdrawals: [], seq: 100 };
 }
 
 let state;
@@ -61,25 +69,28 @@ function selfView() {
     photoVersion: 1,
     walletPaise: state.walletPaise,
     earningsPaise: state.earningsPaise,
+    coins: state.coins,
     isAdmin: false,
     profileComplete: Boolean(
-      state.mePhoto && m.hobbies.length >= PROFILE_MIN.hobbies && m.likes.length >= PROFILE_MIN.likes &&
-        m.favoriteCuisine && m.weekendStyle && m.chronotype && m.dreamDestination,
+      state.mePhoto && m.hobbies.length >= PROFILE_MIN.hobbies && m.likes.length >= PROFILE_MIN.likes,
     ),
   };
 }
 
-const solved = (id) => state.attempts[id]?.status === 'solved';
+const likedMe = (id) => state.likesIn.some((l) => l.from === id);
+const matched = (id) => state.likesOut.includes(id) && likedMe(id);
+const nameKnown = (p) => p.is_host || likedMe(p.id) || (state.guesses[p.id] && state.guesses[p.id].status !== 'pending');
 
-function publicView(p, revealed = solved(p.id)) {
-  const base = { id: p.id, name: p.name, gender: p.gender, age: age(p.dob), city: p.city, bio: p.bio, lookingFor: p.looking_for, hasPhoto: true, photoVersion: 1, revealed };
-  if (!revealed) return base;
-  return { ...base, hobbies: p.hobbies, likes: p.likes, favoriteCuisine: p.favorite_cuisine, weekendStyle: p.weekend_style, chronotype: p.chronotype, dreamDestination: p.dream_destination };
+function publicView(p, hideName = !nameKnown(p)) {
+  return {
+    id: p.id, name: hideName ? null : p.name, nameMask: hideName ? (state.guesses[p.id]?.mask ?? null) : null,
+    gender: p.gender, age: age(p.dob), city: p.city, bio: p.bio, lookingFor: p.looking_for, hasPhoto: true, photoVersion: 1,
+    hobbies: p.hobbies, likes: p.likes, favoriteCuisine: p.favorite_cuisine, weekendStyle: p.weekend_style,
+    chronotype: p.chronotype, dreamDestination: p.dream_destination,
+  };
 }
 
 const person = (id) => state.people.find((p) => p.id === Number(id)) ?? fail(404, 'User not found');
-// Same rule as the server: listed friends' photos are public, others need a solved puzzle.
-const canSeePhoto = (p) => p.is_host || solved(p.id);
 const rateFor = (gender) => {
   const key = PAYG_RATES[gender] ? gender : 'other';
   const r = PAYG_RATES[key];
@@ -95,22 +106,20 @@ export function ledger(account, type, amountPaise, note) {
   state.tx.unshift({ id: nextId(), account, type, amountPaise, note, createdAt: now() });
 }
 
-function puzzleState(a, lastResult) {
-  const q = a.status === 'in_progress' ? a.questions[a.current] : null;
-  return {
-    attemptId: a.id, targetId: a.targetId, status: a.status, correct: a.correct, wrong: a.wrong,
-    correctToSolve: PUZZLE.correctToSolve, maxWrong: PUZZLE.maxWrong, totalQuestions: a.questions.length,
-    questionNumber: a.current + 1, revealed: a.revealed, grid: PUZZLE.grid,
-    question: q ? { index: a.current, prompt: q.prompt, options: q.options } : null,
-    ...(a.status === 'failed' ? { retryAt: new Date(new Date(a.updatedAt).getTime() + PUZZLE.cooldownHours * 3600e3).toISOString() } : {}),
-    ...(lastResult ? { lastResult } : {}),
-  };
+function ensureGuess(p) {
+  state.guesses[p.id] ??= { ...buildNameGuess(p), status: 'pending', coinsAwarded: 0 };
+  return state.guesses[p.id];
+}
+function guessView(g) {
+  const v = { mask: g.mask, options: g.options, status: g.status };
+  if (g.status !== 'pending') Object.assign(v, { correctOption: g.answer, coinsAwarded: g.coinsAwarded });
+  return v;
 }
 
 const messageView = (m) => m;
 
 function walletSummary() {
-  return { walletPaise: state.walletPaise, earningsPaise: state.earningsPaise, packageMinutes: packageMinutes(), lots: state.lots.filter((l) => l.minutesLeft > 0), paymentsMode: 'mock' };
+  return { walletPaise: state.walletPaise, earningsPaise: state.earningsPaise, coins: state.coins, packageMinutes: packageMinutes(), lots: state.lots.filter((l) => l.minutesLeft > 0), paymentsMode: 'mock' };
 }
 
 // ---- routes -------------------------------------------------------------
@@ -120,7 +129,7 @@ const route = (method, pattern, fn) => routes.push({ method, re: new RegExp(`^${
 const requireMe = () => state.me ?? fail(401, 'Please log in');
 
 route('GET', '/meta', () => ({
-  catalog: CATALOG, profileMin: PROFILE_MIN, puzzle: PUZZLE, rates: PAYG_RATES, packages: PACKAGES,
+  catalog: CATALOG, profileMin: PROFILE_MIN, nameGuess: NAME_GUESS, rates: PAYG_RATES, packages: PACKAGES,
   platformFeePercent: PLATFORM_FEE_PERCENT, payments: { mode: 'mock', razorpayKeyId: null }, iceServers: ICE_SERVERS, demo: true,
 }));
 
@@ -171,7 +180,7 @@ route('POST', '/profile/photo', async (form) => {
 
 route('GET', '/users/:id', (_b, { id }) => {
   const p = person(id);
-  return { user: publicView(p), canSeePhoto: canSeePhoto(p), revealedTiles: solved(p.id) ? [...Array(TILE_COUNT).keys()] : (state.attempts[p.id]?.revealed ?? []) };
+  return { user: publicView(p), matched: matched(p.id) };
 });
 route('POST', '/users/:id/block', (_b, { id }) => {
   state.blocked.push(Number(id));
@@ -179,71 +188,105 @@ route('POST', '/users/:id/block', (_b, { id }) => {
 });
 route('POST', '/users/:id/report', () => ({ ok: true }));
 
+const requireComplete = () => selfView().profileComplete || fail(412, 'Complete your profile (photo, hobbies, likes) first');
+
 route('GET', '/discover', () => {
   const me = requireMe();
+  requireComplete();
   const profiles = state.people
-    .filter((p) => !state.blocked.includes(p.id) && !state.skips.includes(p.id) && !solved(p.id) && state.attempts[p.id]?.status !== 'failed')
+    .filter((p) => !state.blocked.includes(p.id) && !state.skips.includes(p.id) && !state.likesOut.includes(p.id))
     .filter((p) => me.interestedIn === 'everyone' || p.gender === me.interestedIn)
-    .map((p) => ({ ...publicView(p), puzzle: state.attempts[p.id] ? { status: state.attempts[p.id].status, revealed: state.attempts[p.id].revealed } : null }));
-  return { profiles: shuffle(profiles), rules: PUZZLE };
+    .map((p) => {
+      const g = ensureGuess(p);
+      return { ...publicView(p, g.status === 'pending'), guess: guessView(g), likesYou: likedMe(p.id) };
+    });
+  return { profiles: shuffle(profiles), rules: NAME_GUESS };
 });
 route('POST', '/discover/:id/skip', (_b, { id }) => {
   state.skips.push(Number(id));
   return { ok: true };
 });
-route('POST', '/discover/:id/puzzle', (_b, { id }) => {
-  if (!selfView().profileComplete) fail(412, 'Complete your profile (photo, hobbies, likes) to play puzzles');
+route('POST', '/discover/:id/guess', (b, { id }) => {
+  requireComplete();
   const p = person(id);
-  let a = state.attempts[p.id];
-  if (a?.status === 'failed') fail(429, 'You can retry this puzzle later', { puzzle: puzzleState(a) });
-  if (!a) {
-    a = { id: nextId(), targetId: p.id, questions: generateQuestions(p), current: 0, correct: 0, wrong: 0, revealed: [], status: 'in_progress', updatedAt: now() };
-    state.attempts[p.id] = a;
+  const g = ensureGuess(p);
+  if (g.status !== 'pending') fail(409, 'You already guessed this name');
+  const correct = b.optionIndex === g.answer;
+  g.status = correct ? 'correct' : 'wrong';
+  if (correct) {
+    g.coinsAwarded = NAME_GUESS.coinsPerCorrect;
+    state.coins += g.coinsAwarded;
+    ledger('coins', 'name_guess', g.coinsAwarded);
   }
-  return { puzzle: puzzleState(a), profile: publicView(p) };
+  return { guess: guessView(g), profile: publicView(p, false), coins: state.coins };
 });
-route('POST', '/puzzles/:attemptId/answer', (b, { attemptId }) => {
-  const a = Object.values(state.attempts).find((x) => x.id === Number(attemptId)) ?? fail(404, 'Puzzle not found');
-  if (a.status !== 'in_progress') fail(409, 'This puzzle is already finished');
-  if (b.questionIndex !== a.current) fail(409, 'That question was already answered');
-  const q = a.questions[a.current];
-  const isCorrect = b.optionIndex === q.answer;
-  const hidden = [...Array(TILE_COUNT).keys()].filter((t) => !a.revealed.includes(t));
-  let newly = [];
-  if (isCorrect) {
-    a.correct++;
-    newly = shuffle(hidden).slice(0, PUZZLE.tilesPerCorrect);
-  } else a.wrong++;
-  if (a.correct >= PUZZLE.correctToSolve) {
-    a.status = 'solved';
-    newly = hidden;
-  } else if (a.wrong >= PUZZLE.maxWrong || a.current + 1 >= a.questions.length) a.status = 'failed';
-  a.revealed = [...a.revealed, ...newly].sort((x, y) => x - y);
-  a.current++;
-  a.updatedAt = now();
-  const p = person(a.targetId);
-  return { puzzle: puzzleState(a, { correct: isCorrect, correctOption: q.answer, newlyRevealed: newly }), profile: a.status === 'solved' ? publicView(p, true) : undefined };
+
+function emitMatch(p) {
+  emitToClient('match:new', { user: publicView(p, false), message: `It's a match with ${p.name}! 🎉` });
+}
+
+route('POST', '/discover/:id/like', (b, { id }) => {
+  requireComplete();
+  const p = person(id);
+  if (state.likesOut.includes(p.id)) fail(409, 'You already liked this person');
+  const text = (b.message ?? '').trim();
+  if (text && state.guesses[p.id]?.status !== 'correct') fail(403, 'Guess their name right to send a message');
+  state.likesOut.push(p.id);
+  if (text) state.messages.push({ id: nextId(), senderId: ME, receiverId: p.id, body: text.slice(0, NAME_GUESS.messageMaxLength), readAt: null, createdAt: now() });
+  if (likedMe(p.id)) return { matched: true, profile: publicView(p, false) };
+  // Demo people like you back after a moment (most of the time), so you can see a match happen.
+  if (p.id % 3 !== 0) {
+    setTimeout(() => {
+      state.likesIn.push({ from: p.id, message: null, at: now(), declined: false });
+      save();
+      emitMatch(p);
+    }, 3000);
+  }
+  return { matched: false, profile: publicView(p, false) };
+});
+
+route('GET', '/likes', () => ({
+  likes: state.likesIn
+    .filter((l) => !l.declined && !state.likesOut.includes(l.from) && !state.blocked.includes(l.from))
+    .map((l) => ({ user: publicView(person(l.from), false), message: l.message, likedAt: l.at })),
+}));
+route('POST', '/likes/:id/accept', (_b, { id }) => {
+  const p = person(id);
+  const like = state.likesIn.find((l) => l.from === p.id) ?? fail(404, 'Like not found');
+  if (!state.likesOut.includes(p.id)) state.likesOut.push(p.id);
+  if (like.message && !state.messages.some((m) => m.senderId === p.id && m.body === like.message)) {
+    state.messages.push({ id: nextId(), senderId: p.id, receiverId: ME, body: like.message, readAt: now(), createdAt: like.at });
+  }
+  return { matched: true };
+});
+route('POST', '/likes/:id/decline', (_b, { id }) => {
+  const like = state.likesIn.find((l) => l.from === Number(id));
+  if (like) like.declined = true;
+  return { ok: true };
 });
 route('GET', '/admirers', () => ({ admirers: [] }));
 
 const thread = (id) => state.messages.filter((m) => m.senderId === id || m.receiverId === id);
 route('GET', '/conversations', () => ({
   conversations: state.people
-    .filter((p) => solved(p.id) && !state.blocked.includes(p.id))
+    .filter((p) => matched(p.id) && !state.blocked.includes(p.id))
     .map((p) => {
       const t = thread(p.id);
       const last = t[t.length - 1];
-      return { user: publicView(p), canSeePhoto: canSeePhoto(p), online: p.online, lastMessage: last?.body ?? null, lastAt: last?.createdAt ?? null, unread: t.filter((m) => m.senderId === p.id && !m.readAt).length };
+      return { user: publicView(p, false), online: p.online, lastMessage: last?.body ?? null, lastAt: last?.createdAt ?? null, unread: t.filter((m) => m.senderId === p.id && !m.readAt).length };
     })
     .sort((x, y) => (y.lastAt ?? '').localeCompare(x.lastAt ?? '')),
 }));
 route('GET', '/messages/:id', (_b, { id }) => {
   const p = person(id);
-  return { user: publicView(p), canSeePhoto: canSeePhoto(p), canMessage: solved(p.id) && !state.blocked.includes(p.id), online: p.online, messages: thread(p.id).map(messageView) };
+  return {
+    user: publicView(p), canMessage: matched(p.id) && !state.blocked.includes(p.id),
+    waitingForLikeBack: state.likesOut.includes(p.id) && !likedMe(p.id), online: p.online, messages: thread(p.id).map(messageView),
+  };
 });
 route('POST', '/messages/:id', (b, { id }) => {
   const p = person(id);
-  if (!solved(p.id)) fail(403, 'Solve their photo puzzle to unlock messaging');
+  if (!matched(p.id)) fail(403, 'You can chat once you both like each other');
   const msg = { id: nextId(), senderId: ME, receiverId: p.id, body: b.body.trim(), readAt: null, createdAt: now() };
   state.messages.push(msg);
   // The other person "types" a reply.
@@ -252,7 +295,7 @@ route('POST', '/messages/:id', (b, { id }) => {
     const reply = { id: nextId(), senderId: p.id, receiverId: ME, body: REPLIES[thread(p.id).length % REPLIES.length], readAt: null, createdAt: now() };
     state.messages.push(reply);
     save();
-    emitToClient('message:new', { message: reply, from: publicView(p) });
+    emitToClient('message:new', { message: reply, from: publicView(p, false) });
   }, 2500);
   return { message: msg };
 });
@@ -342,10 +385,10 @@ export async function demoApi(path, { method = 'GET', body } = {}) {
   throw new DemoError(404, 'Not found');
 }
 
-export function demoPhotoUrl(user, part) {
+export function demoPhotoUrl(user) {
   if (user.id === ME) return state.mePhoto ?? '';
   const p = state.people.find((x) => x.id === user.id);
-  return p ? demoPhoto(p, part) : '';
+  return p ? demoPhoto(p) : '';
 }
 
 export { publicView as demoPublicView, rateFor, person as demoPerson, nextId as demoNextId, now as demoNow };

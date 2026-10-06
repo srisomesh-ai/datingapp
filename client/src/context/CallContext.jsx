@@ -191,7 +191,7 @@ export function CallProvider({ children }) {
           toast(res.error, 'error');
           return;
         }
-        setCall((prev) => ({ ...prev, callId: res.callId, iceServers: res.iceServers, rate: res.rate, canSeePhoto: res.canSeePhoto }));
+        setCall((prev) => ({ ...prev, callId: res.callId, iceServers: res.iceServers, rate: res.rate }));
       });
     },
     [socket, getMedia, cleanupMedia, toast],

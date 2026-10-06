@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext.jsx';
 import { useCall } from '../context/CallContext.jsx';
 import Avatar from '../components/Avatar.jsx';
-import { api, timeAgo } from '../lib/api.js';
+import { api, displayName, timeAgo } from '../lib/api.js';
 
 export default function Chat() {
   const { userId } = useParams();
@@ -57,7 +57,7 @@ export default function Chat() {
   }
 
   async function block() {
-    if (!confirm(`Block ${info.user.name}? They won't be able to message or call you.`)) return;
+    if (!confirm(`Block ${displayName(info.user)}? They won't be able to message or call you.`)) return;
     await api(`/users/${id}/block`, { method: 'POST' });
     toast('Blocked');
     navigate('/chats');
@@ -78,9 +78,9 @@ export default function Chat() {
     <div className="chat">
       <header className="chat-head">
         <button className="icon" onClick={() => navigate('/chats')} aria-label="Back">←</button>
-        <Avatar user={other} unlocked={info.canSeePhoto} online={info.online} size={40} />
+        <Avatar user={other} online={info.online} size={40} />
         <div className="grow">
-          <strong>{other.name}</strong>
+          <strong>{displayName(other)}</strong>
           <div className="muted small">{info.online ? 'Online' : 'Offline'}</div>
         </div>
         {info.canMessage && (
@@ -98,12 +98,9 @@ export default function Chat() {
         )}
       </header>
 
-      {!info.canSeePhoto && (
-        <Link to={`/play/${other.id}`} className="banner">🧩 {other.name}'s photo is still hidden. Play their puzzle to reveal it →</Link>
-      )}
 
       <div className="messages">
-        {messages.length === 0 && <p className="muted center">You unlocked this chat. Break the ice! 🧊</p>}
+        {messages.length === 0 && info.canMessage && <p className="muted center">It's a match! Break the ice 🧊</p>}
         {messages.map((m) => (
           <div key={m.id} className={`bubble ${m.senderId === me.id ? 'mine' : ''}`}>
             {m.body}
@@ -118,8 +115,10 @@ export default function Chat() {
           <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Type a message" maxLength={2000} />
           <button className="btn" disabled={!text.trim()}>Send</button>
         </form>
+      ) : info.waitingForLikeBack ? (
+        <p className="muted center pad">❤️ Like sent. You can chat once {displayName(other)} likes you back.</p>
       ) : (
-        <p className="muted center pad">You can't message this person.</p>
+        <p className="muted center pad">You can chat once you both like each other.</p>
       )}
     </div>
   );

@@ -63,7 +63,7 @@ export default function Friends() {
           const short = f.affordableMinutes < 1;
           return (
             <li key={f.id} className="card friend">
-              <Avatar user={f} unlocked size={64} online={f.status === 'available'} />
+              <Avatar user={f} size={64} online={f.status === 'available'} />
               <div className="grow">
                 <div className="row-between">
                   <strong>{f.name}, {f.age}</strong>

@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET, IS_PROD, PROFILE_MIN, perMinutePaise, PAYG_RATES, rateKeyFor } from './config.js';
 import { one } from './db.js';
-import { parseList, shuffle } from './puzzleQuestions.js';
+import { parseList, shuffle } from './nameGuess.js';
 
 export { parseList, shuffle };
 
@@ -75,11 +75,7 @@ export function isProfileComplete(u) {
   return Boolean(
     u.has_photo &&
       parseList(u.hobbies).length >= PROFILE_MIN.hobbies &&
-      parseList(u.likes).length >= PROFILE_MIN.likes &&
-      u.favorite_cuisine &&
-      u.weekend_style &&
-      u.chronotype &&
-      u.dream_destination,
+      parseList(u.likes).length >= PROFILE_MIN.likes,
   );
 }
 
@@ -110,19 +106,21 @@ export function selfView(u) {
     hostHeadline: u.host_headline,
     walletPaise: u.wallet_paise,
     earningsPaise: u.earnings_paise,
+    coins: u.coins,
     isAdmin: Boolean(u.is_admin),
     profileComplete: isProfileComplete(u),
   };
 }
 
 /**
- * What another user may see. Puzzle answers (hobbies, likes, quiz fields) are
- * deliberately excluded unless the viewer already solved the puzzle.
+ * What another user may see. With `hideName`, the name is withheld (guess-the-name
+ * hasn't been played yet) and only the masked hint is sent.
  */
-export function publicView(u, { revealed = false } = {}) {
-  const base = {
+export function publicView(u, { hideName = false, mask = null } = {}) {
+  return {
     id: u.id,
-    name: u.name,
+    name: hideName ? null : u.name,
+    nameMask: hideName ? mask : null,
     gender: u.gender,
     age: ageFromDob(u.dob),
     city: u.city,
@@ -130,11 +128,6 @@ export function publicView(u, { revealed = false } = {}) {
     lookingFor: u.looking_for,
     hasPhoto: Boolean(u.has_photo),
     photoVersion: u.photo_version,
-    revealed,
-  };
-  if (!revealed) return base;
-  return {
-    ...base,
     hobbies: parseList(u.hobbies),
     likes: parseList(u.likes),
     favoriteCuisine: u.favorite_cuisine,

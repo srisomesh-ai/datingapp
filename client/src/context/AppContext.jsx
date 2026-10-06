@@ -42,14 +42,15 @@ export function AppProvider({ children }) {
     if (!user?.id) return undefined;
     const s = demoSocket ? demoSocket.createDemoSocket() : io({ withCredentials: true });
     setSocket(s);
-    const onSolved = ({ message }) => toast(message, 'love');
+    const onLiked = ({ message }) => toast(message, 'love');
     const onMessage = ({ message, from }) => {
       if (from && message.senderId !== user.id && !location.pathname.startsWith(`/chats/${message.senderId}`)) {
         setUnread((n) => n + 1);
         toast(`💬 ${from.name}: ${message.body.slice(0, 60)}`);
       }
     };
-    s.on('puzzle:solved', onSolved);
+    s.on('like:new', onLiked);
+    s.on('match:new', onLiked);
     s.on('message:new', onMessage);
     return () => {
       s.disconnect();

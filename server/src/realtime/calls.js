@@ -3,10 +3,9 @@
 import { BILLING_INTERVAL_MS, ICE_SERVERS, LOW_BALANCE_MINUTES, RING_TIMEOUT_MS } from '../config.js';
 import { one, run } from '../db.js';
 import { affordableMinutes, chargeMinute } from '../billing.js';
-import { areConnected } from '../puzzle.js';
+import { isMatched } from '../connections.js';
 import { emitToUser, isOnline } from './hub.js';
 import { hostRate, isBlockedEitherWay, publicView } from '../util.js';
-import { canSeeFullPhoto } from '../routes/profile.js';
 
 const calls = new Map(); // callId -> live call state
 const userCall = new Map(); // userId -> callId
@@ -88,8 +87,8 @@ export function registerCallHandlers(io, socket) {
         if (affordableMinutes(me.id, rate.rateKey, rate.paisePerMinute) < 1) {
           return ack({ error: 'Not enough balance. Add money or buy a package.', code: 'insufficient_balance' });
         }
-      } else if (!areConnected(me.id, callee.id)) {
-        return ack({ error: 'Solve their photo puzzle first to call for free' });
+      } else if (!isMatched(me.id, callee.id)) {
+        return ack({ error: 'You can call for free once you both like each other' });
       }
 
       const { lastInsertRowid } = run(
@@ -121,7 +120,6 @@ export function registerCallHandlers(io, socket) {
       emitToUser(callee.id, 'call:incoming', {
         callId,
         from: publicView(me),
-        canSeePhoto: canSeeFullPhoto(callee.id, me),
         media,
         mode,
         rate: mode === 'paid' ? rate : null,
@@ -131,7 +129,6 @@ export function registerCallHandlers(io, socket) {
         callId,
         iceServers: ICE_SERVERS,
         callee: publicView(callee),
-        canSeePhoto: canSeeFullPhoto(me.id, callee),
         rate: mode === 'paid' ? rate : null,
       });
     } catch (err) {

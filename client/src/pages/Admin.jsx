@@ -24,7 +24,10 @@ export default function Admin() {
       <div className="stats">
         <div className="card"><small>Users</small><b>{stats.users}</b></div>
         <div className="card"><small>Friends</small><b>{stats.friends}</b></div>
-        <div className="card"><small>Puzzles solved</small><b>{stats.puzzlesSolved}</b></div>
+        <div className="card"><small>Names guessed</small><b>{stats.namesGuessed}</b></div>
+        <div className="card"><small>Likes</small><b>{stats.likes}</b></div>
+        <div className="card"><small>Matches</small><b>{stats.matches}</b></div>
+        <div className="card"><small>Coins earned</small><b>{stats.coinsEarned}</b></div>
         <div className="card"><small>Paid minutes</small><b>{stats.paidMinutes}</b></div>
         <div className="card"><small>Call revenue</small><b>{rupees(stats.grossCallPaise)}</b></div>
         <div className="card"><small>Platform fees</small><b>{rupees(stats.platformFeePaise)}</b></div>

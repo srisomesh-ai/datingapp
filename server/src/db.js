@@ -34,27 +34,38 @@ CREATE TABLE IF NOT EXISTS users (
   host_headline TEXT NOT NULL DEFAULT '',
   wallet_paise INTEGER NOT NULL DEFAULT 0 CHECK (wallet_paise >= 0),
   earnings_paise INTEGER NOT NULL DEFAULT 0 CHECK (earnings_paise >= 0),
+  coins INTEGER NOT NULL DEFAULT 0 CHECK (coins >= 0),
   is_admin INTEGER NOT NULL DEFAULT 0,
   is_banned INTEGER NOT NULL DEFAULT 0,
   last_seen_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS puzzle_attempts (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+-- One guess-the-name round per (visitor, target).
+CREATE TABLE IF NOT EXISTS name_guesses (
   visitor_id INTEGER NOT NULL REFERENCES users(id),
   target_id INTEGER NOT NULL REFERENCES users(id),
-  questions TEXT NOT NULL,
-  current_index INTEGER NOT NULL DEFAULT 0,
-  correct INTEGER NOT NULL DEFAULT 0,
-  wrong INTEGER NOT NULL DEFAULT 0,
-  revealed TEXT NOT NULL DEFAULT '[]',
-  status TEXT NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress','solved','failed')),
+  mask TEXT NOT NULL,
+  options TEXT NOT NULL,
+  answer INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','correct','wrong')),
+  coins_awarded INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  guessed_at TEXT,
+  PRIMARY KEY (visitor_id, target_id)
 );
-CREATE INDEX IF NOT EXISTS idx_puzzle_pair ON puzzle_attempts(visitor_id, target_id, id);
-CREATE INDEX IF NOT EXISTS idx_puzzle_target ON puzzle_attempts(target_id, status);
+
+-- A like, optionally with the one intro message a correct guess unlocks.
+-- Likes in both directions = a match (full chat + free calls).
+CREATE TABLE IF NOT EXISTS likes (
+  from_id INTEGER NOT NULL REFERENCES users(id),
+  to_id INTEGER NOT NULL REFERENCES users(id),
+  message TEXT,
+  declined INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (from_id, to_id)
+);
+CREATE INDEX IF NOT EXISTS idx_likes_to ON likes(to_id, declined);
 
 CREATE TABLE IF NOT EXISTS discover_skips (
   visitor_id INTEGER NOT NULL REFERENCES users(id),
@@ -160,6 +171,10 @@ CREATE TABLE IF NOT EXISTS withdrawals (
   processed_at TEXT
 );
 `);
+
+// Columns added after the first release, for databases created before them.
+const userCols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+if (!userCols.includes('coins')) db.exec('ALTER TABLE users ADD COLUMN coins INTEGER NOT NULL DEFAULT 0');
 
 /** Run fn inside a write transaction; rolls back on throw. Not re-entrant. */
 export function tx(fn) {
