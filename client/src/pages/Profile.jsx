@@ -55,6 +55,9 @@ export default function Profile() {
         chronotype: user.chronotype,
         dreamDestination: user.dreamDestination,
         hostHeadline: user.hostHeadline,
+        guessMinAge: user.guessMinAge ?? '',
+        guessMaxAge: user.guessMaxAge ?? '',
+        dailyChatLimit: user.dailyChatLimit,
       });
     }
   }, [user, form]);
@@ -175,6 +178,26 @@ export default function Profile() {
         <Choice options={c.chronotypes} value={form.chronotype} onChange={set('chronotype')} />
         <p className="label">Dream holiday</p>
         <Choice options={c.destinations} value={form.dreamDestination} onChange={set('dreamDestination')} />
+      </section>
+
+      <section className="card stack">
+        <h3>🛡️ Safety</h3>
+        <p className="muted small">You decide who can guess your name and how many new chats can start with you each day.</p>
+        <p className="label">Who can guess me (age)</p>
+        <div className="row">
+          <input type="number" min={meta.safety?.minAge ?? 18} max={meta.safety?.maxAge ?? 99} placeholder="Min" value={form.guessMinAge} onChange={set('guessMinAge')} />
+          <span className="muted">to</span>
+          <input type="number" min={meta.safety?.minAge ?? 18} max={meta.safety?.maxAge ?? 99} placeholder="Max" value={form.guessMaxAge} onChange={set('guessMaxAge')} />
+        </div>
+        <label>
+          New chats per day
+          <select value={form.dailyChatLimit} onChange={(e) => set('dailyChatLimit')(Number(e.target.value))}>
+            {(meta.safety?.dailyChatOptions ?? [3, 5, 10, 20, 50]).map((n) => (
+              <option key={n} value={n}>{n} per day</option>
+            ))}
+          </select>
+        </label>
+        <p className="fine">When the limit is reached you're hidden from Discover until tomorrow.</p>
       </section>
 
       {user.profileComplete && (

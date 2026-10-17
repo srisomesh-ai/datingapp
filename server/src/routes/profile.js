@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import fs from 'node:fs';
 import path from 'node:path';
-import { CATALOG, UPLOAD_DIR } from '../config.js';
+import { CATALOG, SAFETY, UPLOAD_DIR } from '../config.js';
 import { one, run } from '../db.js';
 import { getGuess, isConnected, nameKnown } from '../connections.js';
 import { HttpError, isBlockedEitherWay, publicView, requireAuth, requireOneOf, requireString, selfView } from '../util.js';
@@ -30,6 +30,22 @@ router.put('/profile', (req, res) => {
   if (b.lookingFor !== undefined) updates.looking_for = requireOneOf(b.lookingFor, CATALOG.lookingFor, 'looking for');
   if (b.hobbies !== undefined) updates.hobbies = listFrom(b.hobbies, CATALOG.hobbies, 'hobbies', { min: 3, max: 8 });
   if (b.likes !== undefined) updates.likes = listFrom(b.likes, CATALOG.likes, 'likes', { min: 3, max: 8 });
+  // Safety: who can guess me (age range) and how many new chats can open per day.
+  const ageOrNull = (v, field) => {
+    if (v == null || v === '') return null;
+    const n = Number(v);
+    if (!Number.isInteger(n) || n < SAFETY.minAge || n > SAFETY.maxAge) throw new HttpError(400, `${field} must be ${SAFETY.minAge}-${SAFETY.maxAge}`);
+    return n;
+  };
+  if (b.guessMinAge !== undefined) updates.guess_min_age = ageOrNull(b.guessMinAge, 'Minimum age');
+  if (b.guessMaxAge !== undefined) updates.guess_max_age = ageOrNull(b.guessMaxAge, 'Maximum age');
+  const minAge = updates.guess_min_age !== undefined ? updates.guess_min_age : req.user.guess_min_age;
+  const maxAge = updates.guess_max_age !== undefined ? updates.guess_max_age : req.user.guess_max_age;
+  if (minAge != null && maxAge != null && minAge > maxAge) throw new HttpError(400, 'Minimum age must not be above maximum age');
+  if (b.dailyChatLimit !== undefined) {
+    if (!SAFETY.dailyChatOptions.includes(Number(b.dailyChatLimit))) throw new HttpError(400, 'Invalid daily chat limit');
+    updates.daily_chat_limit = Number(b.dailyChatLimit);
+  }
   // Optional extras: null/empty clears them.
   const optional = (v, options, field) => (v == null || v === '' ? null : requireOneOf(v, options, field));
   if (b.favoriteCuisine !== undefined) updates.favorite_cuisine = optional(b.favoriteCuisine, CATALOG.cuisines, 'cuisine');

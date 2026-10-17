@@ -35,6 +35,9 @@ CREATE TABLE IF NOT EXISTS users (
   wallet_paise INTEGER NOT NULL DEFAULT 0 CHECK (wallet_paise >= 0),
   earnings_paise INTEGER NOT NULL DEFAULT 0 CHECK (earnings_paise >= 0),
   coins INTEGER NOT NULL DEFAULT 0 CHECK (coins >= 0),
+  guess_min_age INTEGER,
+  guess_max_age INTEGER,
+  daily_chat_limit INTEGER,
   is_admin INTEGER NOT NULL DEFAULT 0,
   is_banned INTEGER NOT NULL DEFAULT 0,
   last_seen_at TEXT,
@@ -60,6 +63,7 @@ CREATE TABLE IF NOT EXISTS connections (
   user_a INTEGER NOT NULL REFERENCES users(id),
   user_b INTEGER NOT NULL REFERENCES users(id),
   guesser_id INTEGER NOT NULL REFERENCES users(id),
+  via TEXT NOT NULL DEFAULT 'guess', -- 'guess' (right guess) or 'accepted' (opened from "tried to guess you")
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (user_a, user_b)
 );
@@ -184,6 +188,11 @@ db.exec(schemaSql);
 // Columns added after the first release, for databases created before them.
 const userCols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
 if (!userCols.includes('coins')) db.exec('ALTER TABLE users ADD COLUMN coins INTEGER NOT NULL DEFAULT 0');
+for (const col of ['guess_min_age', 'guess_max_age', 'daily_chat_limit']) {
+  if (!userCols.includes(col)) db.exec(`ALTER TABLE users ADD COLUMN ${col} INTEGER`);
+}
+const connCols = db.prepare('PRAGMA table_info(connections)').all().map((c) => c.name);
+if (!connCols.includes('via')) db.exec("ALTER TABLE connections ADD COLUMN via TEXT NOT NULL DEFAULT 'guess'");
 // calls: allow mode 'sample' and track coins (SQLite can't alter a CHECK, so rebuild the table once).
 const callsSql = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'calls'").get()?.sql ?? '';
 if (!callsSql.includes("'sample'")) {

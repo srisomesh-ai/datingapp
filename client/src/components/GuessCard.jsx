@@ -27,7 +27,10 @@ export default function GuessCard({ profile, onDone, guessesLeft, onGuessesLeft 
       onGuessesLeft?.(res.guessesLeft);
     } catch (err) {
       if (err.data?.code === 'daily_guess_limit') onGuessesLeft?.(0);
-      else toast(err.message, 'error');
+      else if (err.data?.code === 'daily_limit' || err.data?.code === 'not_in_range') {
+        toast(err.message, 'warn');
+        onDone();
+      } else toast(err.message, 'error');
       setPicked(null);
     } finally {
       setBusy(false);

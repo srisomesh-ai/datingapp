@@ -226,3 +226,12 @@ main { flex: 1; min-height: 0; overflow-y: auto; width: 100%; max-width: 560px; 
 .unlock { margin: 8px 12px; }
 .sheet-backdrop { position: fixed; inset: 0; z-index: 15; background: #0008; display: flex; align-items: flex-end; justify-content: center; }
 .sheet { width: 100%; max-width: 560px; border-radius: var(--radius) var(--radius) 0 0; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+
+/* Tried to guess you */
+.tried { border: 1px solid #ffffff14; }
+.tried-stats { display: flex; align-items: center; gap: 12px; }
+.tried-stats .big { font-size: 1.6rem; white-space: nowrap; }
+.tried-list { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+.tried-person { flex: 0 0 120px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; background: var(--surface-2); border-radius: 14px; padding: 10px 8px; }
+.tried-person img { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; }
+.tried-person strong { font-size: 0.85rem; }

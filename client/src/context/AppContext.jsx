@@ -15,7 +15,8 @@ export function AppProvider({ children }) {
 
   const toast = useCallback((text, kind = 'info') => {
     const id = ++toastId.current;
-    setToasts((t) => [...t, { id, text, kind }]);
+    // Show at most 3 at once, newest last, and don't repeat the same text.
+    setToasts((t) => [...t.filter((x) => x.text !== text), { id, text, kind }].slice(-3));
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 4000);
   }, []);
 
@@ -48,6 +49,8 @@ export function AppProvider({ children }) {
       }
     };
     s.on('guess:correct', onGuessed);
+    s.on('guess:attempt', onGuessed);
+    s.on('guess:accepted', onGuessed);
     s.on('message:new', onMessage);
     return () => {
       s.disconnect();
