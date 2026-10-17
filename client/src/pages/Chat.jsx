@@ -109,7 +109,7 @@ export default function Chat() {
   }
 
   async function block() {
-    if (!confirm(`Block ${displayName(info.user)}? They won't be able to message or call you.`)) return;
+    if (!confirm(`End chat with ${displayName(info.user)}? They won't be able to message, call or see you again.`)) return;
     await api(`/users/${id}/block`, { method: 'POST' });
     toast('Blocked');
     navigate('/chats');
@@ -145,14 +145,21 @@ export default function Chat() {
         {menu && (
           <div className="menu">
             <button onClick={report}>Report</button>
-            <button onClick={block}>Block</button>
+            <button onClick={block}>End chat &amp; block</button>
           </div>
         )}
       </header>
 
       <div className="messages">
         <p className="muted center small">
-          {info.guessedYou ? `🎉 ${other.name} guessed your name!` : `🎉 You guessed ${other.name}'s name!`} Say hi.
+          {info.via === 'accepted'
+            ? info.guessedYou
+              ? `💌 ${other.name} opened this chat after you tried to guess the name.`
+              : `💌 You opened this chat with ${other.name}.`
+            : info.guessedYou
+              ? `🎉 ${other.name} guessed your name!`
+              : `🎉 You guessed ${other.name}'s name!`}{' '}
+          Say hi.
         </p>
         {messages.map((m) => (
           <div key={m.id} className={`bubble ${m.senderId === me.id ? 'mine' : ''}`}>

@@ -27,6 +27,10 @@ function partner(req) {
 
 /** Free messages left for `me` in this chat, or unlimited once they've paid. */
 export function chatAllowance(meId, otherId) {
+  const { gender } = one('SELECT gender FROM users WHERE id = ?', meId);
+  if (CHAT.freeForGenders.includes(gender)) {
+    return { unlocked: true, free: true, freeTotal: CHAT.freeMessagesPerPerson, freeLeft: null, unlockPricePaise: CHAT.unlockPricePaise };
+  }
   const unlocked = Boolean(one('SELECT 1 FROM chat_unlocks WHERE user_id = ? AND partner_id = ?', meId, otherId));
   const sent = one('SELECT COUNT(*) AS n FROM messages WHERE sender_id = ? AND receiver_id = ?', meId, otherId).n;
   return {
@@ -42,10 +46,10 @@ router.get('/conversations', (req, res) => {
   const me = req.user.id;
   const rows = all(
     `WITH partners AS (
-       SELECT CASE WHEN user_a = ? THEN user_b ELSE user_a END AS uid, guesser_id, created_at AS connected_at
+       SELECT CASE WHEN user_a = ? THEN user_b ELSE user_a END AS uid, guesser_id, via, created_at AS connected_at
        FROM connections WHERE user_a = ? OR user_b = ?
      )
-     SELECT u.*, p.guesser_id, p.connected_at,
+     SELECT u.*, p.guesser_id, p.via, p.connected_at,
        (SELECT body FROM messages m WHERE (m.sender_id = ? AND m.receiver_id = u.id) OR (m.sender_id = u.id AND m.receiver_id = ?) ORDER BY m.id DESC LIMIT 1) AS last_body,
        (SELECT created_at FROM messages m WHERE (m.sender_id = ? AND m.receiver_id = u.id) OR (m.sender_id = u.id AND m.receiver_id = ?) ORDER BY m.id DESC LIMIT 1) AS last_at,
        (SELECT COUNT(*) FROM messages m WHERE m.sender_id = u.id AND m.receiver_id = ? AND m.read_at IS NULL) AS unread
@@ -61,6 +65,7 @@ router.get('/conversations', (req, res) => {
       online: isOnline(u.id),
       // Who guessed whom, for the "guessed your name" label on new chats.
       guessedYou: u.guesser_id === u.id,
+      via: u.via,
       lastMessage: u.last_body,
       lastAt: u.last_at ?? u.connected_at,
       unread: u.unread,
@@ -83,6 +88,7 @@ router.get('/messages/:userId', (req, res) => {
   res.json({
     user: publicView(other),
     guessedYou: connectionOf(req.user.id, other.id).guesser_id === other.id,
+    via: connectionOf(req.user.id, other.id).via,
     canMessage: !isBlockedEitherWay(req.user.id, other.id),
     chat: chatAllowance(req.user.id, other.id),
     online: isOnline(other.id),

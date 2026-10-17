@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { Server } from 'socket.io';
-import { CATALOG, ICE_SERVERS, PACKAGES, PAYG_RATES, PAYMENTS_MODE, PLATFORM_FEE_PERCENT, NAME_GUESS, PROFILE_MIN, RAZORPAY_KEY_ID, SAMPLE_CALL, CHAT, MATCH_CALL } from './config.js';
+import { CATALOG, ICE_SERVERS, PACKAGES, PAYG_RATES, PAYMENTS_MODE, PLATFORM_FEE_PERCENT, NAME_GUESS, PROFILE_MIN, RAZORPAY_KEY_ID, SAMPLE_CALL, CHAT, MATCH_CALL, SAFETY } from './config.js';
 import { run } from './db.js';
 import { HttpError, requireAuth, userFromToken, COOKIE } from './util.js';
 import { iceServersFor } from './ice.js';
@@ -36,6 +36,7 @@ export function createServer() {
       nameGuess: NAME_GUESS,
       sampleCall: SAMPLE_CALL,
       chat: CHAT,
+      safety: SAFETY,
       matchCall: MATCH_CALL,
       rates: PAYG_RATES,
       packages: PACKAGES,

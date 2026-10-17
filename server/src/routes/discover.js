@@ -1,7 +1,8 @@
 import { Router } from 'express';
-import { NAME_GUESS, SKIP_DAYS } from '../config.js';
+import { NAME_GUESS, SAFETY, SKIP_DAYS } from '../config.js';
 import { all, one, run } from '../db.js';
-import { ensureGuess, guessView, guessesLeftToday, submitGuess } from '../connections.js';
+import { ensureGuess, guessView, guessesLeftToday, isConnected, submitGuess } from '../connections.js';
+import { guessBlockedReason, guessStats, whoTried } from '../safety.js';
 import { emitToUser } from '../realtime/hub.js';
 import { HttpError, isBlockedEitherWay, isProfileComplete, publicView, requireAuth, shuffle } from '../util.js';
 
@@ -56,7 +57,8 @@ router.get('/discover', (req, res) => {
     me.id,
     `-${SKIP_DAYS} days`,
   );
-  const picked = shuffle(rows.filter(isProfileComplete)).slice(0, 20);
+  // Respect each person's "who can guess me" age range and daily new-chat limit.
+  const picked = shuffle(rows.filter((u) => isProfileComplete(u) && !guessBlockedReason(u, me))).slice(0, 20);
   res.json({ profiles: picked.map((u) => card(me.id, u)), rules: NAME_GUESS, guessesLeft: guessesLeftToday(me.id) });
 });
 
@@ -74,6 +76,9 @@ router.post('/discover/:id/skip', (req, res) => {
 router.post('/discover/:id/guess', (req, res) => {
   requireCompleteProfile(req.user);
   const t = target(req);
+  const blocked = guessBlockedReason(t, req.user);
+  if (blocked === 'daily_limit') throw new HttpError(409, "This person isn't taking new chats today. Try again tomorrow!", { code: 'daily_limit' });
+  if (blocked) throw new HttpError(409, "This profile isn't available", { code: blocked });
   ensureGuess(req.user.id, t);
   const guess = submitGuess(req.user.id, t.id, req.body?.optionIndex);
   if (guess.connected) {
@@ -81,6 +86,8 @@ router.post('/discover/:id/guess', (req, res) => {
       user: publicView(req.user),
       message: `🎉 ${req.user.name} guessed your name! Your chat is open.`,
     });
+  } else {
+    emitToUser(t.id, 'guess:attempt', { message: '👀 Someone just tried to guess your name!', stats: guessStats(t.id) });
   }
   const me = one('SELECT coins FROM users WHERE id = ?', req.user.id);
   res.json({
@@ -89,6 +96,31 @@ router.post('/discover/:id/guess', (req, res) => {
     coins: me.coins,
     guessesLeft: guessesLeftToday(req.user.id),
   });
+});
+
+// "N people tried to guess your name today, M got it right."
+router.get('/guess-stats', (req, res) => res.json(guessStats(req.user.id)));
+
+// People who guessed your name wrong recently: you can still open a chat with them.
+router.get('/who-tried', (req, res) => {
+  res.json({
+    days: SAFETY.whoTriedDays,
+    people: whoTried(req.user.id).map((u) => ({ user: publicView(u), triedAt: u.guessed_at })),
+  });
+});
+
+router.post('/who-tried/:id/chat', (req, res) => {
+  const t = target(req);
+  if (!whoTried(req.user.id).some((u) => u.id === t.id)) throw new HttpError(404, 'This person did not try to guess your name recently');
+  if (!isConnected(req.user.id, t.id)) {
+    const [a, b] = req.user.id < t.id ? [req.user.id, t.id] : [t.id, req.user.id];
+    run("INSERT OR IGNORE INTO connections (user_a, user_b, guesser_id, via) VALUES (?, ?, ?, 'accepted')", a, b, req.user.id);
+  }
+  emitToUser(t.id, 'guess:accepted', {
+    user: publicView(req.user),
+    message: `💌 ${req.user.name} saw you tried to guess ${req.user.gender === 'female' ? 'her' : req.user.gender === 'male' ? 'his' : 'their'} name and opened a chat with you!`,
+  });
+  res.json({ connected: true, user: publicView(t) });
 });
 
 export default router;

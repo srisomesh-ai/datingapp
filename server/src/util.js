@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { JWT_SECRET, IS_PROD, PROFILE_MIN, perMinutePaise, PAYG_RATES, rateKeyFor } from './config.js';
+import { JWT_SECRET, IS_PROD, PROFILE_MIN, perMinutePaise, PAYG_RATES, rateKeyFor, SAFETY } from './config.js';
 import { one } from './db.js';
 import { parseList, shuffle } from './nameGuess.js';
 
@@ -107,6 +107,9 @@ export function selfView(u) {
     walletPaise: u.wallet_paise,
     earningsPaise: u.earnings_paise,
     coins: u.coins,
+    guessMinAge: u.guess_min_age,
+    guessMaxAge: u.guess_max_age,
+    dailyChatLimit: u.daily_chat_limit ?? SAFETY.defaultDailyChats[u.gender] ?? SAFETY.defaultDailyChats.other,
     isAdmin: Boolean(u.is_admin),
     profileComplete: isProfileComplete(u),
   };

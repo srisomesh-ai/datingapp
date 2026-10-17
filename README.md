@@ -5,7 +5,14 @@ This is a web app for finding a soulmate or a friend, built mobile-first. It has
 1. **Guess the name (instead of swiping).** Discover shows each person's photo and profile, but their **name is hidden** behind a hint (e.g. `R _ _ _ _`). Pick the right name from 4 options. It's a little challenging, not a giveaway: one look-alike name always fits the hint too (e.g. Rajan / Rohan), the other options look similar but don't fit, and at most about a third of the letters show. A careful guess is about 50/50.
    - **Right guess:** you earn **🪙 1 coin**, the other person is **notified** ("Tara guessed your name!"), and **a chat opens for both of you**.
    - **Wrong guess:** no chat. You can try that person again after 24 hours, and the answer isn't revealed.
-   - **Chat is free up to a limit:** each person gets **10 free messages** per chat. After that, **₹49** (paid once, from the wallet) unlocks unlimited messages to that person.
+   - **Chat is free up to a limit:** each person gets **10 free messages** per chat. After that, **₹49** (paid once, from the wallet) unlocks unlimited messages to that person. **Women chat free** (`CHAT.freeForGenders`).
+   - **Women-first safety** (Profile → Safety):
+     - **Who can guess me:** an age range. People outside it never see the profile and can't guess.
+     - **New chats per day:** default 5 for women, 20 for men. Once reached, the profile is hidden from Discover until tomorrow.
+     - **End chat & block** in one tap from the chat menu.
+   - **Guess notifications:**
+     - "👀 7 people tried to guess your name today · 2 got it right" at the top of Chats, plus a live alert on every try.
+     - People who guessed wrong in the last 7 days are listed. Tap **Start chat** to open a chat with any of them (they're notified).
    - **No free calls:** calling someone you're connected with costs **₹5/min** from the wallet (the platform keeps it), or **🪙 10 for a 1-minute call**. Coins are only used if they answer, at most once per person per day.
    - Daily limits stop people tapping through every photo: **20 guesses per day** and at most **10 coins per day** (`guessesPerDay`, `dailyCoinLimit`).
 2. **Find a Friend (paid video calls).** Users can turn on *Friend mode* and go "available". Anyone can then video call them, paying per minute:

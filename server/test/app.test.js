@@ -195,7 +195,8 @@ test('chat is free for 10 messages each, then ₹49 unlocks it', async () => {
   assert.equal(r.status, 402);
   assert.equal(r.body.code, 'chat_limit');
   // Asha still has her own free messages.
-  assert.equal((await api(asha.token, 'GET', `/api/messages/${ravi.id}`)).body.chat.freeLeft, 9);
+  // Women chat free: Asha has no limit.
+  assert.equal((await api(asha.token, 'GET', `/api/messages/${ravi.id}`)).body.chat.free, true);
   // Unlock needs wallet money.
   assert.equal((await api(ravi.token, 'POST', `/api/messages/${asha.id}/unlock`)).status, 402);
   db.prepare('UPDATE users SET wallet_paise = 100_00 WHERE id = ?').run(ravi.id);
@@ -427,6 +428,89 @@ test('video calls only: voice-only calls are refused', async () => {
     rSock.close();
     aSock.close();
   }
+});
+
+test('women chat free: no message limit for female senders', async () => {
+  for (let i = 0; i < 12; i++) {
+    assert.equal((await api(asha.token, 'POST', `/api/messages/${ravi.id}`, { body: `hi ${i}` })).status, 201);
+  }
+});
+
+test('who can guess me: age range hides the profile and blocks guesses', async () => {
+  // Everyone in tests is 28. Meera only allows 30-40.
+  let r = await api(meera.token, 'PUT', '/api/profile', { guessMinAge: 30, guessMaxAge: 40 });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.user.guessMinAge, 30);
+  assert.equal((await api(meera.token, 'PUT', '/api/profile', { guessMinAge: 45 })).status, 400); // above max
+  assert.equal((await api(ravi.token, 'GET', '/api/discover')).body.profiles.some((p) => p.id === meera.id), false);
+  db.prepare("INSERT OR REPLACE INTO name_guesses (visitor_id, target_id, mask, options, answer) VALUES (?, ?, 'M _ _ _ _', '[\"Meera\",\"Megha\",\"Mahi\",\"Mona\"]', 0)").run(ravi.id, meera.id);
+  r = await api(ravi.token, 'POST', `/api/discover/${meera.id}/guess`, { optionIndex: 0 });
+  assert.equal(r.status, 409);
+  assert.equal(r.body.code, 'not_in_range');
+  await api(meera.token, 'PUT', '/api/profile', { guessMinAge: null, guessMaxAge: null });
+  assert.equal((await api(ravi.token, 'GET', '/api/discover')).body.profiles.some((p) => p.id === meera.id), true);
+});
+
+test('daily new-chat limit: after it, she leaves Discover until tomorrow', async () => {
+  assert.equal((await api(meera.token, 'GET', '/api/profile')).body.user.dailyChatLimit, 5); // women default
+  assert.equal((await api(meera.token, 'PUT', '/api/profile', { dailyChatLimit: 7 })).status, 400);
+  await api(meera.token, 'PUT', '/api/profile', { dailyChatLimit: 3 });
+  // Pretend 3 people already opened chats with her today.
+  const others = [ravi, kiran, asha];
+  for (const o of others) {
+    const [a, b] = o.id < meera.id ? [o.id, meera.id] : [meera.id, o.id];
+    db.prepare("INSERT OR IGNORE INTO connections (user_a, user_b, guesser_id) VALUES (?, ?, ?)").run(a, b, o.id);
+  }
+  const extra = await makeUser('Dev', 'male');
+  assert.equal((await api(extra.token, 'GET', '/api/discover')).body.profiles.some((p) => p.id === meera.id), false);
+  db.prepare("INSERT OR REPLACE INTO name_guesses (visitor_id, target_id, mask, options, answer) VALUES (?, ?, 'M _ _ _ _', '[\"Meera\",\"Megha\",\"Mahi\",\"Mona\"]', 0)").run(extra.id, meera.id);
+  const r = await api(extra.token, 'POST', `/api/discover/${meera.id}/guess`, { optionIndex: 0 });
+  assert.equal(r.status, 409);
+  assert.equal(r.body.code, 'daily_limit');
+  // Clean up so later tests see the original state.
+  for (const o of others) {
+    const [a, b] = o.id < meera.id ? [o.id, meera.id] : [meera.id, o.id];
+    db.prepare('DELETE FROM connections WHERE user_a = ? AND user_b = ?').run(a, b);
+  }
+});
+
+test('guess notifications: stats, live alert, and opening a chat with someone who tried', async () => {
+  const dev = { token: (await api(null, 'POST', '/api/auth/login', { email: 'dev@example.com', password: 'password123' })).body.token };
+  dev.id = db.prepare("SELECT id FROM users WHERE email = 'dev@example.com'").get().id;
+  await api(meera.token, 'PUT', '/api/profile', { dailyChatLimit: 5 });
+  const mSock = await connect(meera.token);
+  try {
+    // Dev guesses Meera wrong.
+    db.prepare("INSERT OR REPLACE INTO name_guesses (visitor_id, target_id, mask, options, answer) VALUES (?, ?, 'M _ _ _ _', '[\"Meera\",\"Megha\",\"Mahi\",\"Mona\"]', 0)").run(dev.id, meera.id);
+    const alert = once(mSock, 'guess:attempt');
+    assert.equal((await api(dev.token, 'POST', `/api/discover/${meera.id}/guess`, { optionIndex: 1 })).body.guess.status, 'wrong');
+    const a = await alert;
+    assert.match(a.message, /tried to guess your name/);
+    assert.ok(a.stats.today.tried >= 1);
+  } finally {
+    mSock.close();
+  }
+  const stats = await api(meera.token, 'GET', '/api/guess-stats');
+  assert.ok(stats.body.today.tried >= 1);
+  const tried = await api(meera.token, 'GET', '/api/who-tried');
+  const entry = tried.body.people.find((p) => p.user.id === dev.id);
+  assert.equal(entry.user.name, 'Dev');
+  // Dev can't message yet; Meera opens the chat.
+  assert.equal((await api(dev.token, 'POST', `/api/messages/${meera.id}`, { body: 'hi' })).status, 403);
+  const devSock = await connect(dev.token);
+  try {
+    const accepted = once(devSock, 'guess:accepted');
+    assert.equal((await api(meera.token, 'POST', `/api/who-tried/${dev.id}/chat`)).body.connected, true);
+    assert.match((await accepted).message, /Meera saw you tried to guess her name/);
+  } finally {
+    devSock.close();
+  }
+  assert.equal((await api(dev.token, 'POST', `/api/messages/${meera.id}`, { body: 'Thanks for opening the chat!' })).status, 201);
+  const convo = (await api(meera.token, 'GET', '/api/conversations')).body.conversations.find((c) => c.user.id === dev.id);
+  assert.equal(convo.via, 'accepted');
+  // They're connected now, so Dev drops off her "tried" list; random people can't be "accepted".
+  assert.equal((await api(meera.token, 'GET', '/api/who-tried')).body.people.some((p) => p.user.id === dev.id), false);
+  assert.equal((await api(meera.token, 'POST', `/api/who-tried/${kiran.id}/chat`)).status, 404);
 });
 
 test('friends withdraw earnings', async () => {

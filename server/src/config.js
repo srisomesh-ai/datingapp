@@ -106,6 +106,16 @@ export const NAME_GUESS = {
 export const CHAT = {
   freeMessagesPerPerson: 10, // each person, per chat
   unlockPricePaise: 49_00, // unlimited messages from you in that chat
+  freeForGenders: ['female'], // these senders have no message limit
+};
+
+// Women-first safety: control who can guess you and how many new chats open per day.
+export const SAFETY = {
+  defaultDailyChats: { female: 5, male: 20, other: 10 }, // new chats others can open with you per day
+  dailyChatOptions: [3, 5, 10, 20, 50],
+  minAge: 18,
+  maxAge: 99,
+  whoTriedDays: 7, // how far back "tried to guess you" goes
 };
 
 // Calls between connected people are paid (no free calls). Platform keeps it all.
