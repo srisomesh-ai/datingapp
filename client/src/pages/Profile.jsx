@@ -181,7 +181,7 @@ export default function Profile() {
         <section className="card stack">
           <h3>Be a Friend & earn</h3>
           <p className="muted">
-            List yourself in <b>Find a Friend</b>. People pay to voice/video call you and you keep {100 - fee}% of every minute
+            List yourself in <b>Find a Friend</b>. People pay to video call you and you keep {100 - fee}% of every minute
             ({fee}% platform fee). Your photo is visible to callers.
           </p>
           <label className="switch">
