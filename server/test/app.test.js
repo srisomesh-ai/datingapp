@@ -10,6 +10,7 @@ process.env.UPLOAD_DIR = tmp;
 process.env.BILLING_INTERVAL_MS = '150';
 process.env.RING_TIMEOUT_MS = '2000';
 process.env.SAMPLE_CALL_SECONDS = '1';
+process.env.GUESSES_PER_DAY = '2';
 process.env.TURN_URLS = 'turn:turn.example.test:3478?transport=udp,turn:turn.example.test:3478?transport=tcp';
 process.env.TURN_SECRET = 'test-turn-secret';
 
@@ -104,14 +105,32 @@ test('fee split is 25% platform / 75% friend', () => {
   assert.deepEqual(splitFee(2000), { fee: 500, hostShare: 1500 });
 });
 
-test('name mask keeps the first letter and hides most of the rest', () => {
-  const m = maskName('Ananya');
-  assert.equal(m[0], 'A');
-  assert.ok(m.split(' ').filter((c) => c === '_').length >= 3);
-  const g = buildNameGuess({ name: 'Ananya Rao', gender: 'female' });
-  assert.equal(g.options.length, 4);
-  assert.equal(g.options[g.answer], 'Ananya');
-  assert.equal(new Set(g.options).size, 4);
+/** Which options are consistent with the hint the player sees? */
+function fitting(mask, options) {
+  if (mask.endsWith('…')) return options.filter((o) => o[0].toLowerCase() === mask[0].toLowerCase());
+  const letters = mask.split(' ');
+  return options.filter((o) => o.length === letters.length && letters.every((c, i) => c === '_' || c.toLowerCase() === o[i].toLowerCase()));
+}
+
+test('guessing is a little challenging: exactly two names fit the hint', () => {
+  const names = [
+    ['Ananya', 'female'], ['Asha', 'female'], ['Kavya', 'female'], ['Meera', 'female'], ['Priya', 'female'],
+    ['Rohan', 'male'], ['Ravi', 'male'], ['Sai', 'male'], ['Arjun', 'male'], ['Siddharth', 'male'], ['Zubin', 'male'],
+  ];
+  for (const [name, gender] of names) {
+    for (let i = 0; i < 25; i++) {
+      const g = buildNameGuess({ name: `${name} Test`, gender });
+      assert.equal(g.options.length, 4, name);
+      assert.equal(new Set(g.options).size, 4, name);
+      assert.equal(g.options[g.answer], name);
+      const fit = fitting(g.mask, g.options);
+      assert.equal(fit.length, 2, `${name}: ${g.mask} -> ${g.options}`);
+      assert.ok(fit.includes(name));
+      // Not too much is given away: at most about a third of the letters.
+      if (!g.mask.endsWith('…')) assert.ok(g.mask.split(' ').filter((c) => c !== '_').length <= Math.max(1, Math.floor(name.length / 3)));
+    }
+  }
+  assert.equal(maskName('Rohan', [0, 4]), 'R _ _ _ n');
 });
 
 const answerOf = (visitor, target) =>
@@ -123,7 +142,8 @@ test('discover shows the photo and profile but hides the name', async () => {
   const a = r.body.profiles.find((p) => p.id === asha.id);
   assert.ok(a);
   assert.equal(a.name, null);
-  assert.match(a.nameMask, /^A( [_a-z])+$/);
+  assert.ok(/_|…/.test(a.nameMask) && !a.nameMask.includes('Asha'));
+  assert.equal(fitting(a.nameMask, a.guess.options).length, 2);
   assert.equal(a.guess.options.length, 4);
   assert.equal(a.guess.correctOption, undefined);
   assert.deepEqual(a.hobbies, ['Cooking', 'Dancing', 'Reading']);
@@ -136,62 +156,78 @@ test('discover shows the photo and profile but hides the name', async () => {
   assert.equal((await api(ravi.token, 'GET', `/api/users/${asha.id}`)).body.user.name, null);
 });
 
-test('correct guess: +1 coin, one message with the like, match on like back', async () => {
-  const ans = answerOf(ravi, asha);
-  let r = await api(ravi.token, 'POST', `/api/discover/${asha.id}/guess`, { optionIndex: ans });
-  assert.equal(r.status, 200);
-  assert.equal(r.body.guess.status, 'correct');
-  assert.equal(r.body.guess.coinsAwarded, 1);
-  assert.equal(r.body.coins, 1);
-  assert.equal(r.body.profile.name, 'Asha');
-  // Only one guess.
-  assert.equal((await api(ravi.token, 'POST', `/api/discover/${asha.id}/guess`, { optionIndex: ans })).status, 409);
-
-  // No chat before a match.
-  assert.equal((await api(ravi.token, 'POST', `/api/messages/${asha.id}`, { body: 'hi' })).status, 403);
-  r = await api(ravi.token, 'POST', `/api/discover/${asha.id}/like`, { message: 'Hey Asha! Got your name first try 😄' });
-  assert.equal(r.status, 200);
-  assert.equal(r.body.matched, false);
-  assert.equal((await api(ravi.token, 'POST', `/api/discover/${asha.id}/like`, {})).status, 409);
-  // Still just the one message until she likes back.
-  assert.equal((await api(ravi.token, 'POST', `/api/messages/${asha.id}`, { body: 'hello?' })).status, 403);
-  const waiting = await api(ravi.token, 'GET', `/api/messages/${asha.id}`);
-  assert.equal(waiting.body.waitingForLikeBack, true);
-  assert.equal(waiting.body.canMessage, false);
-
-  // Asha sees the like with the message and who sent it.
-  const likes = await api(asha.token, 'GET', '/api/likes');
-  const l = likes.body.likes.find((x) => x.user.id === ravi.id);
-  assert.equal(l.message, 'Hey Asha! Got your name first try 😄');
-  assert.equal(l.user.name, 'Ravi');
-
-  assert.equal((await api(asha.token, 'POST', `/api/likes/${ravi.id}/accept`)).body.matched, true);
-  assert.equal((await api(asha.token, 'GET', '/api/likes')).body.likes.length, 0);
+test('right guess: +1 coin, both get a chat, the other person is notified', async () => {
+  const aSock = await connect(asha.token);
+  try {
+    const notified = once(aSock, 'guess:correct');
+    const ans = answerOf(ravi, asha);
+    let r = await api(ravi.token, 'POST', `/api/discover/${asha.id}/guess`, { optionIndex: ans });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.guess.status, 'correct');
+    assert.equal(r.body.guess.connected, true);
+    assert.equal(r.body.guess.coinsAwarded, 1);
+    assert.equal(r.body.coins, 1);
+    assert.equal(r.body.profile.name, 'Asha');
+    assert.match((await notified).message, /Ravi guessed your name/);
+    assert.equal((await api(ravi.token, 'POST', `/api/discover/${asha.id}/guess`, { optionIndex: ans })).status, 409);
+  } finally {
+    aSock.close();
+  }
+  // Chat is open for both right away.
+  assert.equal((await api(ravi.token, 'POST', `/api/messages/${asha.id}`, { body: 'Hey Asha!' })).status, 201);
   assert.equal((await api(asha.token, 'POST', `/api/messages/${ravi.id}`, { body: 'Hi Ravi :)' })).status, 201);
-  const convo = await api(ravi.token, 'GET', '/api/conversations');
-  assert.equal(convo.body.conversations[0].user.id, asha.id);
+  const convo = await api(asha.token, 'GET', '/api/conversations');
+  assert.equal(convo.body.conversations[0].user.name, 'Ravi');
+  assert.equal(convo.body.conversations[0].guessedYou, true);
   assert.equal(convo.body.conversations[0].unread, 1);
-  const thread = await api(ravi.token, 'GET', `/api/messages/${asha.id}`);
-  assert.deepEqual(thread.body.messages.map((m) => m.body), ['Hey Asha! Got your name first try 😄', 'Hi Ravi :)']);
-  // Matched people drop out of Discover.
+  // Connected people drop out of Discover; strangers still can't message.
   assert.equal((await api(ravi.token, 'GET', '/api/discover')).body.profiles.some((p) => p.id === asha.id), false);
-  // Unrelated user still can't message.
   assert.equal((await api(kiran.token, 'POST', `/api/messages/${asha.id}`, { body: 'hi' })).status, 403);
 });
 
-test('wrong guess: no coin and no message, but a plain like still works', async () => {
+test('chat is free for 10 messages each, then ₹49 unlocks it', async () => {
+  for (let i = 2; i <= 10; i++) {
+    const r = await api(ravi.token, 'POST', `/api/messages/${asha.id}`, { body: `msg ${i}` });
+    assert.equal(r.status, 201);
+    if (i === 10) assert.equal(r.body.chat.freeLeft, 0);
+  }
+  let r = await api(ravi.token, 'POST', `/api/messages/${asha.id}`, { body: 'one more' });
+  assert.equal(r.status, 402);
+  assert.equal(r.body.code, 'chat_limit');
+  // Asha still has her own free messages.
+  assert.equal((await api(asha.token, 'GET', `/api/messages/${ravi.id}`)).body.chat.freeLeft, 9);
+  // Unlock needs wallet money.
+  assert.equal((await api(ravi.token, 'POST', `/api/messages/${asha.id}/unlock`)).status, 402);
+  db.prepare('UPDATE users SET wallet_paise = 100_00 WHERE id = ?').run(ravi.id);
+  r = await api(ravi.token, 'POST', `/api/messages/${asha.id}/unlock`);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.chat.unlocked, true);
+  assert.equal(r.body.walletPaise, 51_00);
+  // Unlocking twice doesn't charge twice.
+  assert.equal((await api(ravi.token, 'POST', `/api/messages/${asha.id}/unlock`)).body.walletPaise, 51_00);
+  assert.equal((await api(ravi.token, 'POST', `/api/messages/${asha.id}`, { body: 'unlimited now' })).status, 201);
+  const fee = db.prepare("SELECT SUM(amount_paise) AS s FROM transactions WHERE account = 'platform' AND type = 'chat_unlock'").get().s;
+  assert.equal(fee, 49_00);
+  db.prepare('UPDATE users SET wallet_paise = 0 WHERE id = ?').run(ravi.id);
+});
+
+test('wrong guess: no chat, answer stays hidden, retry after 24 hours', async () => {
   await api(kiran.token, 'GET', '/api/discover');
   const ans = answerOf(kiran, meera);
-  const r = await api(kiran.token, 'POST', `/api/discover/${meera.id}/guess`, { optionIndex: ans === 0 ? 1 : 0 });
+  let r = await api(kiran.token, 'POST', `/api/discover/${meera.id}/guess`, { optionIndex: ans === 0 ? 1 : 0 });
   assert.equal(r.body.guess.status, 'wrong');
-  assert.equal(r.body.guess.correctOption, ans);
+  assert.equal(r.body.guess.correctOption, undefined);
+  assert.ok(r.body.guess.retryAt);
+  assert.equal(r.body.profile.name, null);
   assert.equal(r.body.coins, 0);
-  assert.equal((await api(kiran.token, 'POST', `/api/discover/${meera.id}/like`, { message: 'hi' })).status, 403);
-  assert.equal((await api(kiran.token, 'POST', `/api/discover/${meera.id}/like`, {})).status, 200);
-  const likes = await api(meera.token, 'GET', '/api/likes');
-  assert.equal(likes.body.likes[0].message, null);
-  assert.equal((await api(meera.token, 'POST', `/api/likes/${kiran.id}/decline`)).status, 200);
-  assert.equal((await api(meera.token, 'GET', '/api/likes')).body.likes.length, 0);
+  assert.equal((await api(kiran.token, 'POST', `/api/messages/${meera.id}`, { body: 'hi' })).status, 403);
+  assert.equal((await api(kiran.token, 'POST', `/api/discover/${meera.id}/guess`, { optionIndex: ans })).status, 429);
+  assert.equal((await api(kiran.token, 'GET', '/api/discover')).body.profiles.some((p) => p.id === meera.id), false);
+  // A day later she's back with a fresh round.
+  db.prepare("UPDATE name_guesses SET guessed_at = datetime('now', '-25 hours') WHERE visitor_id = ? AND target_id = ?").run(kiran.id, meera.id);
+  r = await api(kiran.token, 'GET', '/api/discover');
+  const card = r.body.profiles.find((p) => p.id === meera.id);
+  assert.equal(card.guess.status, 'pending');
 });
 
 test('wallet top-up (mock), packages and validation', async () => {
@@ -253,7 +289,7 @@ test('paid call: package minutes first, then wallet; 25% fee; ends when balance 
 
     const meeraRow = db.prepare('SELECT earnings_paise FROM users WHERE id = ?').get(meera.id);
     assert.equal(meeraRow.earnings_paise, 2850);
-    const fee = db.prepare("SELECT SUM(amount_paise) AS s FROM transactions WHERE account = 'platform'").get().s;
+    const fee = db.prepare("SELECT SUM(amount_paise) AS s FROM transactions WHERE account = 'platform' AND type = 'platform_fee'").get().s;
     assert.equal(fee, 450 + 500);
     assert.equal(db.prepare('SELECT wallet_paise FROM users WHERE id = ?').get(kiran.id).wallet_paise, 1000);
 
@@ -266,20 +302,36 @@ test('paid call: package minutes first, then wallet; 25% fee; ends when balance 
   }
 });
 
-test('free calls need a match', async () => {
+test('no free calls: connected people pay ₹5/min, and the platform keeps it', async () => {
   const rSock = await connect(ravi.token);
   const aSock = await connect(asha.token);
   const kSock = await connect(kiran.token);
   try {
-    const denied = await emitAck(kSock, 'call:start', { to: asha.id, media: 'audio', mode: 'free' });
-    assert.ok(denied.error);
+    assert.ok((await emitAck(rSock, 'call:start', { to: asha.id, media: 'audio', mode: 'free' })).error);
+    // Not connected: no match call.
+    assert.match((await emitAck(kSock, 'call:start', { to: asha.id, media: 'audio', mode: 'match' })).error, /Guess their name/);
+    // Connected but no money.
+    assert.equal((await emitAck(rSock, 'call:start', { to: asha.id, media: 'audio', mode: 'match' })).code, 'insufficient_balance');
+
+    db.prepare('UPDATE users SET wallet_paise = 10_00 WHERE id = ?').run(ravi.id); // 2 minutes
+    const feeBefore = db.prepare("SELECT COALESCE(SUM(amount_paise), 0) AS s FROM transactions WHERE account = 'platform'").get().s;
+    const earningsBefore = db.prepare('SELECT earnings_paise FROM users WHERE id = ?').get(asha.id).earnings_paise;
     const incoming = once(aSock, 'call:incoming');
-    const ok = await emitAck(rSock, 'call:start', { to: asha.id, media: 'audio', mode: 'free' });
-    assert.ok(ok.ok);
-    await incoming;
+    const start = await emitAck(rSock, 'call:start', { to: asha.id, media: 'audio', mode: 'match' });
+    assert.ok(start.ok, JSON.stringify(start));
+    assert.equal(start.kind, 'match');
+    assert.equal(start.rate.paisePerMinute, 5_00);
+    assert.equal((await incoming).kind, 'match');
     const ended = once(rSock, 'call:ended');
-    aSock.emit('call:reject', { callId: ok.callId });
-    assert.equal((await ended).status, 'rejected');
+    assert.ok((await emitAck(aSock, 'call:accept', { callId: start.callId })).ok);
+    const end = await ended;
+    assert.equal(end.reason, 'insufficient_balance');
+    assert.equal(end.billedMinutes, 2);
+    assert.equal(end.callerPaidPaise, 10_00);
+    assert.equal(end.hostEarnedPaise, 0);
+    assert.equal(db.prepare('SELECT earnings_paise FROM users WHERE id = ?').get(asha.id).earnings_paise, earningsBefore);
+    const feeAfter = db.prepare("SELECT SUM(amount_paise) AS s FROM transactions WHERE account = 'platform'").get().s;
+    assert.equal(feeAfter - feeBefore, 10_00);
   } finally {
     rSock.close();
     aSock.close();
@@ -294,9 +346,6 @@ test('sample call: 10 coins for 1 minute with anyone, charged only if they accep
   const rSock = await connect(ravi.token);
   const coinsOf = (u) => db.prepare('SELECT coins FROM users WHERE id = ?').get(u.id).coins;
   try {
-    // Matches call free, so sample calls aren't offered between them.
-    assert.match((await emitAck(rSock, 'call:start', { to: asha.id, media: 'audio', mode: 'sample' })).error, /free/);
-
     // Declined: no coins taken. The incoming call says it's a 1-minute sample.
     let incoming = once(aSock, 'call:incoming');
     let start = await emitAck(kSock, 'call:start', { to: asha.id, media: 'video', mode: 'sample' });
@@ -324,7 +373,7 @@ test('sample call: 10 coins for 1 minute with anyone, charged only if they accep
 
     // Once per person per day, and coins are checked up front.
     db.prepare('UPDATE users SET coins = 20 WHERE id = ?').run(kiran.id);
-    assert.match((await emitAck(kSock, 'call:start', { to: asha.id, media: 'audio', mode: 'sample' })).error, /already had a sample call/);
+    assert.match((await emitAck(kSock, 'call:start', { to: asha.id, media: 'audio', mode: 'sample' })).error, /already used a coin call/);
     db.prepare('UPDATE users SET coins = 5 WHERE id = ?').run(kiran.id);
     assert.equal((await emitAck(kSock, 'call:start', { to: ravi.id, media: 'audio', mode: 'sample' })).code, 'insufficient_coins');
   } finally {
@@ -347,6 +396,23 @@ test('TURN credentials are per-user, short-lived and never in the public meta', 
   assert.ok(expiry > Date.now() / 1000 + 3600);
   // Same formula coturn uses with use-auth-secret.
   assert.equal(turn.credential, crypto.createHmac('sha1', 'test-turn-secret').update(turn.username).digest('base64'));
+});
+
+test('daily guess limit stops tapping through every photo', async () => {
+  // GUESSES_PER_DAY is 2 in tests. Asha hasn't guessed anyone yet today.
+  await api(asha.token, 'GET', '/api/discover');
+  const targets = [kiran, meera];
+  for (const t of targets) {
+    const r = await api(asha.token, 'POST', `/api/discover/${t.id}/guess`, { optionIndex: answerOf(asha, t) });
+    assert.equal(r.status, 200);
+  }
+  const d = await api(asha.token, 'GET', '/api/discover');
+  assert.equal(d.body.guessesLeft, 0);
+  await api(asha.token, 'GET', `/api/users/${ravi.id}`);
+  db.prepare("INSERT OR IGNORE INTO name_guesses (visitor_id, target_id, mask, options, answer) VALUES (?, ?, 'R _ _ _', '[\"Ravi\",\"Rahul\",\"Rohan\",\"Rajan\"]', 0)").run(asha.id, ravi.id);
+  const r = await api(asha.token, 'POST', `/api/discover/${ravi.id}/guess`, { optionIndex: 0 });
+  assert.equal(r.status, 429);
+  assert.equal(r.body.code, 'daily_guess_limit');
 });
 
 test('friends withdraw earnings', async () => {

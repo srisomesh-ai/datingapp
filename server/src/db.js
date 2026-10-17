@@ -55,17 +55,24 @@ CREATE TABLE IF NOT EXISTS name_guesses (
   PRIMARY KEY (visitor_id, target_id)
 );
 
--- A like, optionally with the one intro message a correct guess unlocks.
--- Likes in both directions = a match (full chat + free calls).
-CREATE TABLE IF NOT EXISTS likes (
-  from_id INTEGER NOT NULL REFERENCES users(id),
-  to_id INTEGER NOT NULL REFERENCES users(id),
-  message TEXT,
-  declined INTEGER NOT NULL DEFAULT 0,
+-- A correct name guess connects two people (stored once, user_a < user_b).
+CREATE TABLE IF NOT EXISTS connections (
+  user_a INTEGER NOT NULL REFERENCES users(id),
+  user_b INTEGER NOT NULL REFERENCES users(id),
+  guesser_id INTEGER NOT NULL REFERENCES users(id),
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (from_id, to_id)
+  PRIMARY KEY (user_a, user_b)
 );
-CREATE INDEX IF NOT EXISTS idx_likes_to ON likes(to_id, declined);
+CREATE INDEX IF NOT EXISTS idx_connections_b ON connections(user_b);
+
+-- Someone paid to keep chatting with a person after their free messages.
+CREATE TABLE IF NOT EXISTS chat_unlocks (
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  partner_id INTEGER NOT NULL REFERENCES users(id),
+  amount_paise INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, partner_id)
+);
 
 CREATE TABLE IF NOT EXISTS discover_skips (
   visitor_id INTEGER NOT NULL REFERENCES users(id),

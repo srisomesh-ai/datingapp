@@ -2,12 +2,12 @@
 
 This is a web app for finding a soulmate or a friend, built mobile-first. It has two main features:
 
-1. **Guess the name (instead of swiping).** Discover shows each person's photo and profile, but their **name is hidden**, with only some letters showing (e.g. `R _ _ _ n`). Pick the right name from 4 options, with one try per profile:
-   - **Right:** you earn **🪙 1 coin** and can send **one message** together with your ❤️ like.
-   - **Wrong:** no coin and no message, but you can still send a plain like.
-   - The other person sees your like and message under **Likes you** and can like back or pass. Liking each other is a **match**, which opens full chat and free calls.
-   - Decoy names have the same gender and prefer the same first letter, so the visible letters are the clue. Coins are capped per day (`dailyCoinLimit`) to stop farming.
-   - **Spend 🪙 10 on a 1-minute sample call** (voice or video) with anyone: from a Discover card after guessing, on a Find a Friend card, or in a chat while you wait for a like back. Coins are taken only if they **accept**; declined, missed or failed calls are free. The call ends by itself after 60 seconds, with a countdown on screen. There's one sample call per person per 24 hours, and none between matches, who already call free.
+1. **Guess the name (instead of swiping).** Discover shows each person's photo and profile, but their **name is hidden** behind a hint (e.g. `R _ _ _ _`). Pick the right name from 4 options. It's a little challenging, not a giveaway: one look-alike name always fits the hint too (e.g. Rajan / Rohan), the other options look similar but don't fit, and at most about a third of the letters show. A careful guess is about 50/50.
+   - **Right guess:** you earn **🪙 1 coin**, the other person is **notified** ("Tara guessed your name!"), and **a chat opens for both of you**.
+   - **Wrong guess:** no chat. You can try that person again after 24 hours, and the answer isn't revealed.
+   - **Chat is free up to a limit:** each person gets **10 free messages** per chat. After that, **₹49** (paid once, from the wallet) unlocks unlimited messages to that person.
+   - **No free calls:** calling someone you're connected with costs **₹5/min** from the wallet (the platform keeps it), or **🪙 10 for a 1-minute call**. Coins are only used if they answer, at most once per person per day.
+   - Daily limits stop people tapping through every photo: **20 guesses per day** and at most **10 coins per day** (`guessesPerDay`, `dailyCoinLimit`).
 2. **Find a Friend (paid voice and video calls).** Users can turn on *Friend mode* and go "available". Anyone can then voice or video call them, paying per minute:
 
    | Friend    | Pay-as-you-go           | Packages (from wallet, valid 90 days)                  |
@@ -17,13 +17,11 @@ This is a web app for finding a soulmate or a friend, built mobile-first. It has
 
    The **platform fee is 25% of every paid minute**, and the friend keeps 75% as withdrawable earnings (paid out to UPI after admin approval). Package minutes are used first, then wallet balance. Billing is prepaid: each minute is charged as it starts, and the call ends automatically when the caller runs out.
 
-Matches can also voice and video call each other **for free** from the chat.
-
 ## Features
 
 - Email signup with an 18+ check, profiles with a hobbies/likes catalog and optional fun facts
-- The answer never reaches the client before you guess: the server sends only the masked name and the options, and hides the name everywhere else (profile and chat lookups) until you've guessed or they've liked you.
-- Coins ledger shown in the top bar and Wallet: earned by guessing names, spent on sample calls (`SAMPLE_CALL` in `server/src/config.js`).
+- The answer never reaches the client before you guess: the server sends only the masked name and the options, and hides the name everywhere else (profile, chat and call lookups) until you're connected.
+- Coins ledger shown in the top bar and Wallet: earned by guessing names, spent on 1-minute calls (`SAMPLE_CALL`). Chat limits and the per-minute call price are `CHAT` and `MATCH_CALL` in `server/src/config.js`.
 - Realtime chat over Socket.IO, with unread counts and read receipts
 - 1:1 WebRTC voice and video calls (mute, camera on/off, front/back camera switch, ringtone, live cost meter, low-balance warning, end-of-call summary)
 - Wallet: top-ups through Razorpay (UPI, cards, netbanking), call packages, transaction ledger, friend earnings and UPI withdrawals
@@ -44,18 +42,12 @@ npm run install:all
 npm run seed          # 10 demo users, e.g. ananya@demo.app / password123 (₹500 wallet each)
 npm run dev:server    # API + sockets on :4000
 npm run dev:client    # app on http://localhost:5173 (proxies /api and /socket.io)
-npm test              # server tests: name guess, likes/matches, wallet, paid-call billing & fee split
+npm test              # server tests: name guess, connections, chat limits, wallet, call billing & fee split
 ```
 
 To try a call, open two browsers (or one normal window and one incognito window), log in as two different users, and call a friend who is "Available". Camera and mic access require `localhost` or HTTPS.
 
 Without Razorpay keys, payments run in **mock mode**: "Pay" credits the wallet instantly.
-
-## Static demo (for layout testing on plain HTML hosting)
-
-`npm --prefix client run build:demo` builds `client/dist-demo/`. This is a version of the app that needs **no server**. A fake backend runs in the browser, with 10 demo people, auto-replies in chat, the real guess-the-name rules, people who like you back, 🪙 10 to try a sample call, a wallet and packages. Calls connect over real WebRTC to a local animated "demo video" peer, and the yellow bar's **Test incoming call** button rings you. In the demo, one billed minute lasts 10 seconds so you can watch the meter move. Data is kept in that browser's localStorage, and logging out resets it.
-
-This was used for layout testing on static hosting and isn't needed for the real app; the normal `npm run build` contains none of the demo code.
 
 ## Go live (VPS)
 
@@ -75,5 +67,5 @@ Before a public launch:
 
 ## Where to change things
 
-- Prices, packages, the 25% fee, guess-the-name rules, decoy names and the hobby/like catalogs are all in `server/src/config.js`. The client reads them from `/api/meta`.
+- Prices, packages, the 25% fee, guess-the-name rules, decoy names, chat limits, call prices and the hobby/like catalogs are all in `server/src/config.js`. The client reads them from `/api/meta`.
 - App name: `APP_NAME` in `client/src/lib/api.js`, plus `client/index.html` and `client/public/manifest.webmanifest`. It is currently the placeholder `AppName`.

@@ -116,7 +116,7 @@ export default function Profile() {
       <h2>{user.profileComplete ? 'Your profile' : 'Set up your profile'}</h2>
       {!user.profileComplete && (
         <p className="muted">
-          People see your photo and profile but not your name. They guess it to earn a coin and send you a message with their like.
+          People see your photo and profile but not your name. If someone guesses your name right, you're notified and a chat opens for both of you.
         </p>
       )}
 

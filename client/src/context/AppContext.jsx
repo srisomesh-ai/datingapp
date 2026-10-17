@@ -2,8 +2,6 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { io } from 'socket.io-client';
 import { api } from '../lib/api.js';
 
-const demoSocket = import.meta.env.VITE_DEMO === '1' ? await import('../demo/demoSocket.js') : null;
-
 const AppContext = createContext(null);
 export const useApp = () => useContext(AppContext);
 
@@ -40,17 +38,16 @@ export function AppProvider({ children }) {
   // One socket per logged-in session (cookie auth).
   useEffect(() => {
     if (!user?.id) return undefined;
-    const s = demoSocket ? demoSocket.createDemoSocket() : io({ withCredentials: true });
+    const s = io({ withCredentials: true });
     setSocket(s);
-    const onLiked = ({ message }) => toast(message, 'love');
+    const onGuessed = ({ message }) => toast(message, 'love');
     const onMessage = ({ message, from }) => {
       if (from && message.senderId !== user.id && !location.pathname.startsWith(`/chats/${message.senderId}`)) {
         setUnread((n) => n + 1);
         toast(`💬 ${from.name}: ${message.body.slice(0, 60)}`);
       }
     };
-    s.on('like:new', onLiked);
-    s.on('match:new', onLiked);
+    s.on('guess:correct', onGuessed);
     s.on('message:new', onMessage);
     return () => {
       s.disconnect();

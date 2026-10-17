@@ -48,9 +48,9 @@ Open the address on two phones, ideally **one on Wi-Fi and one on mobile data**,
 Checklist:
 
 - [ ] Sign up, add a photo, hobbies and likes
-- [ ] Discover: guess a name, get +1 🪙, send a like with a message
-- [ ] The other phone sees it under **Chats → Likes you** and likes back, then you chat
-- [ ] Free voice + video call between the match
+- [ ] Discover: guess a name right, get +1 🪙; the other phone gets "… guessed your name!"
+- [ ] Both phones have the chat; after 10 messages, unlock it for ₹49
+- [ ] Voice + video call between you: ₹5/min, or 🪙 10 for 1 minute
 - [ ] Profile → turn on **Friend mode** and go available, then from the other phone call them in **Find a Friend**: per-minute billing and earnings
 - [ ] 🪙 10 sample call. Guess 10 names, or give yourself test coins on the server:
       `sudo sqlite3 /var/lib/datingapp/app.db "UPDATE users SET coins = coins + 20 WHERE email = 'you@example.com'"`

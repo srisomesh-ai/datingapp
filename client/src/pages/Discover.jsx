@@ -5,15 +5,17 @@ import GuessCard from '../components/GuessCard.jsx';
 import { api } from '../lib/api.js';
 
 export default function Discover() {
-  const { user, toast } = useApp();
+  const { user, toast, socket } = useApp();
   const [profiles, setProfiles] = useState(null);
   const [index, setIndex] = useState(0);
+  const [guessesLeft, setGuessesLeft] = useState(null);
 
   const load = useCallback(async () => {
     setProfiles(null);
     try {
-      const { profiles } = await api('/discover');
+      const { profiles, guessesLeft } = await api('/discover');
       setProfiles(profiles);
+      setGuessesLeft(guessesLeft);
       setIndex(0);
     } catch (err) {
       toast(err.message, 'error');
@@ -24,6 +26,13 @@ export default function Discover() {
   useEffect(() => {
     if (user.profileComplete) load();
   }, [user.profileComplete, load]);
+
+  // Someone guessed my name: we're connected now, so they leave my Discover.
+  useEffect(() => {
+    const onGuessed = ({ user: by }) => setProfiles((list) => list?.filter((p, i) => i < index || p.id !== by.id) ?? list);
+    socket?.on('guess:correct', onGuessed);
+    return () => socket?.off('guess:correct', onGuessed);
+  }, [socket, index]);
 
   if (!user.profileComplete) {
     return (
@@ -53,7 +62,7 @@ export default function Discover() {
   const next = () => (index + 1 >= profiles.length ? load() : setIndex(index + 1));
   return (
     <div className="page">
-      <GuessCard key={current.id} profile={current} onDone={next} />
+      <GuessCard key={current.id} profile={current} onDone={next} guessesLeft={guessesLeft} onGuessesLeft={setGuessesLeft} />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { NAME_GUESS, SKIP_DAYS } from '../config.js';
 import { all, one, run } from '../db.js';
-import { declineLike, ensureGuess, guessView, hasLiked, likeUser, submitGuess } from '../connections.js';
+import { ensureGuess, guessView, guessesLeftToday, submitGuess } from '../connections.js';
 import { emitToUser } from '../realtime/hub.js';
 import { HttpError, isBlockedEitherWay, isProfileComplete, publicView, requireAuth, shuffle } from '../util.js';
 
@@ -18,11 +18,10 @@ function target(req) {
   return u;
 }
 
-/** A Discover card: photo and profile visible, name hidden until guessed. */
+/** A Discover card: photo and profile visible, name hidden behind a hint. */
 function card(viewerId, u) {
   const g = ensureGuess(viewerId, u);
-  const guessed = g.status !== 'pending';
-  return { ...publicView(u, { hideName: !guessed, mask: g.mask }), guess: guessView(g), likesYou: hasLiked(u.id, viewerId) };
+  return { ...publicView(u, { hideName: true, mask: g.mask }), guess: guessView(g) };
 }
 
 router.get('/discover', (req, res) => {
@@ -35,7 +34,9 @@ router.get('/discover', (req, res) => {
        AND (u.interested_in = 'everyone' OR u.interested_in = ?)
        AND (u.looking_for = 'both' OR ? = 'both' OR u.looking_for = ?)
        AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?))
-       AND NOT EXISTS (SELECT 1 FROM likes l WHERE l.from_id = ? AND l.to_id = u.id)
+       AND NOT EXISTS (SELECT 1 FROM connections c WHERE (c.user_a = ? AND c.user_b = u.id) OR (c.user_a = u.id AND c.user_b = ?))
+       AND NOT EXISTS (SELECT 1 FROM name_guesses g WHERE g.visitor_id = ? AND g.target_id = u.id
+                       AND g.status = 'wrong' AND g.guessed_at > datetime('now', ?))
        AND NOT EXISTS (SELECT 1 FROM discover_skips s WHERE s.visitor_id = ? AND s.target_id = u.id
                        AND s.created_at > datetime('now', ?))
      ORDER BY u.last_seen_at DESC NULLS LAST, u.id DESC
@@ -50,10 +51,13 @@ router.get('/discover', (req, res) => {
     me.id,
     me.id,
     me.id,
+    me.id,
+    `-${NAME_GUESS.retryHours} hours`,
+    me.id,
     `-${SKIP_DAYS} days`,
   );
   const picked = shuffle(rows.filter(isProfileComplete)).slice(0, 20);
-  res.json({ profiles: picked.map((u) => card(me.id, u)), rules: NAME_GUESS });
+  res.json({ profiles: picked.map((u) => card(me.id, u)), rules: NAME_GUESS, guessesLeft: guessesLeftToday(me.id) });
 });
 
 router.post('/discover/:id/skip', (req, res) => {
@@ -66,56 +70,25 @@ router.post('/discover/:id/skip', (req, res) => {
   res.json({ ok: true });
 });
 
+// The only game: pick the right name. Right = connected (chat opens for both) and +coin.
 router.post('/discover/:id/guess', (req, res) => {
   requireCompleteProfile(req.user);
   const t = target(req);
   ensureGuess(req.user.id, t);
   const guess = submitGuess(req.user.id, t.id, req.body?.optionIndex);
-  const me = one('SELECT coins FROM users WHERE id = ?', req.user.id);
-  res.json({ guess, profile: publicView(t), coins: me.coins });
-});
-
-router.post('/discover/:id/like', (req, res) => {
-  requireCompleteProfile(req.user);
-  const t = target(req);
-  const { matched } = likeUser(req.user.id, t.id, req.body?.message);
-  const from = publicView(req.user);
-  if (matched) {
-    emitToUser(t.id, 'match:new', { user: from, message: `It's a match with ${req.user.name}! 🎉` });
-  } else {
-    emitToUser(t.id, 'like:new', { user: from, message: `${req.user.name} liked you ❤️` });
+  if (guess.connected) {
+    emitToUser(t.id, 'guess:correct', {
+      user: publicView(req.user),
+      message: `🎉 ${req.user.name} guessed your name! Your chat is open.`,
+    });
   }
-  res.json({ matched, profile: publicView(t) });
-});
-
-// People who liked me and I haven't answered yet (with their intro message, if any).
-router.get('/likes', (req, res) => {
-  const rows = all(
-    `SELECT u.*, l.message AS like_message, l.created_at AS liked_at FROM likes l JOIN users u ON u.id = l.from_id
-     WHERE l.to_id = ? AND l.declined = 0 AND u.is_banned = 0
-       AND NOT EXISTS (SELECT 1 FROM likes back WHERE back.from_id = ? AND back.to_id = u.id)
-     ORDER BY l.created_at DESC LIMIT 100`,
-    req.user.id,
-    req.user.id,
-  );
+  const me = one('SELECT coins FROM users WHERE id = ?', req.user.id);
   res.json({
-    likes: rows
-      .filter((u) => !isBlockedEitherWay(req.user.id, u.id))
-      .map((u) => ({ user: publicView(u), message: u.like_message, likedAt: u.liked_at })),
+    guess,
+    profile: publicView(t, { hideName: !guess.connected, mask: guess.mask }),
+    coins: me.coins,
+    guessesLeft: guessesLeftToday(req.user.id),
   });
-});
-
-router.post('/likes/:id/accept', (req, res) => {
-  const t = target(req);
-  if (!hasLiked(t.id, req.user.id)) throw new HttpError(404, 'Like not found');
-  likeUser(req.user.id, t.id, null);
-  emitToUser(t.id, 'match:new', { user: publicView(req.user), message: `${req.user.name} liked you back. It's a match! 🎉` });
-  res.json({ matched: true });
-});
-
-router.post('/likes/:id/decline', (req, res) => {
-  declineLike(req.user.id, target(req).id);
-  res.json({ ok: true });
 });
 
 export default router;

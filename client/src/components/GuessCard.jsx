@@ -2,27 +2,21 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext.jsx';
 import { api, labelFor, photoUrl } from '../lib/api.js';
-import SampleCall from './SampleCall.jsx';
 
 /**
- * Discover card: the photo and profile are visible, the name is hidden.
- * Guess it right for a coin and the chance to send one message with your like.
+ * Discover card: see the photo, pick the right name. A right guess opens a chat
+ * for both of you (and they get notified); a wrong one can be retried tomorrow.
  */
-export default function GuessCard({ profile, onDone }) {
-  const { meta, toast, setUser } = useApp();
+export default function GuessCard({ profile, onDone, guessesLeft, onGuessesLeft }) {
+  const { toast, setUser } = useApp();
   const navigate = useNavigate();
   const [p, setP] = useState(profile);
   const [guess, setGuess] = useState(profile.guess);
   const [picked, setPicked] = useState(null);
-  const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
-  const [matched, setMatched] = useState(false);
-
-  const guessed = guess.status !== 'pending';
-  const maxLen = meta?.nameGuess?.messageMaxLength ?? 300;
 
   async function pick(i) {
-    if (busy || guessed) return;
+    if (busy || guess.status !== 'pending') return;
     setBusy(true);
     setPicked(i);
     try {
@@ -30,29 +24,11 @@ export default function GuessCard({ profile, onDone }) {
       setGuess(res.guess);
       setP((prev) => ({ ...prev, ...res.profile }));
       setUser((u) => ({ ...u, coins: res.coins }));
-      if (res.guess.status === 'correct') {
-        toast(res.guess.coinsAwarded ? `+${res.guess.coinsAwarded} 🪙 You guessed it!` : 'Correct! (daily coin limit reached)', 'love');
-      }
+      onGuessesLeft?.(res.guessesLeft);
     } catch (err) {
-      toast(err.message, 'error');
+      if (err.data?.code === 'daily_guess_limit') onGuessesLeft?.(0);
+      else toast(err.message, 'error');
       setPicked(null);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function like() {
-    setBusy(true);
-    try {
-      const body = guess.status === 'correct' && message.trim() ? { message: message.trim() } : {};
-      const res = await api(`/discover/${p.id}/like`, { method: 'POST', body });
-      if (res.matched) setMatched(true);
-      else {
-        toast(body.message ? `Like and message sent to ${p.name} 💌` : `You liked ${p.name} ❤️`);
-        onDone();
-      }
-    } catch (err) {
-      toast(err.message, 'error');
     } finally {
       setBusy(false);
     }
@@ -63,87 +39,77 @@ export default function GuessCard({ profile, onDone }) {
     onDone();
   }
 
-  const facts = [p.favoriteCuisine && `🍽 ${p.favoriteCuisine}`, p.weekendStyle && `🗓 ${p.weekendStyle}`, p.chronotype && (p.chronotype === 'Night owl' ? '🌙 Night owl' : '☀️ Morning person'), p.dreamDestination && `✈️ ${p.dreamDestination}`].filter(Boolean);
-
-  if (matched) {
-    return (
-      <div className="card stack center celebrate match">
-        <img className="match-photo" src={photoUrl(p)} alt={p.name} />
-        <h2>It's a match! 🎉</h2>
-        <p className="muted">You and {p.name} like each other. Chat and call for free.</p>
-        <div className="row">
-          <button className="btn ghost" onClick={onDone}>Keep exploring</button>
-          <button className="btn" onClick={() => navigate(`/chats/${p.id}`)}>Say hi</button>
-        </div>
-      </div>
-    );
-  }
+  const right = guess.status === 'correct';
+  const their = p.gender === 'female' ? 'her' : p.gender === 'male' ? 'his' : 'their';
+  const wrong = guess.status === 'wrong';
 
   return (
     <div className="stack">
       <div className="card discover-card">
         <div className="photo-wrap">
           <img className="discover-photo" src={photoUrl(p)} alt="" />
-          {p.likesYou && <span className="likes-you">❤️ Likes you</span>}
           <div className="photo-caption">
-            <h2 className={guessed ? '' : 'masked'}>
-              {guessed ? p.name : p.nameMask}, {p.age}
+            <h2 className={right ? '' : 'masked'}>
+              {right ? p.name : p.nameMask}, {p.age}
             </h2>
             <span>{p.city}</span>
           </div>
         </div>
       </div>
 
-      {!guessed && (
-        <div className="card stack">
-          <h3>Who is this? 🤔</h3>
-          <p className="muted small">Guess the name right to earn 🪙 1 and send a message with your like. One try only!</p>
-          <div className="options grid2">
-            {guess.options.map((name, i) => (
-              <button key={name} className={`option ${picked === i ? 'picked' : ''}`} disabled={busy} onClick={() => pick(i)}>
+      <div className="card stack">
+        {guess.status === 'pending' && guessesLeft === 0 && (
+          <div className="stack center">
+            <h3>That's all for today 🌙</h3>
+            <p className="muted small">You've used today's guesses. Come back tomorrow for more!</p>
+          </div>
+        )}
+        {guess.status === 'pending' && guessesLeft !== 0 && (
+          <>
+            <div className="row-between">
+              <h3>What's {their} name? 🤔</h3>
+              {guessesLeft != null && <span className="pill small">{guessesLeft} left today</span>}
+            </div>
+            <p className="muted small">
+              Look closely at the letters on the photo: more than one name may fit. Guess right and your chat opens!
+            </p>
+          </>
+        )}
+        <div className="options grid2">
+          {guess.options.map((name, i) => {
+            let cls = 'option';
+            if (right && i === guess.correctOption) cls += ' right';
+            else if (wrong && i === picked) cls += ' wrong';
+            else if (busy && i === picked) cls += ' picked';
+            return (
+              <button key={name} className={cls} disabled={busy || guess.status !== 'pending' || guessesLeft === 0} onClick={() => pick(i)}>
                 {name}
               </button>
-            ))}
-          </div>
-          <button className="btn ghost small" onClick={skip}>Skip</button>
+            );
+          })}
         </div>
-      )}
 
-      {guessed && (
-        <div className="card stack">
-          <div className="options grid2">
-            {guess.options.map((name, i) => {
-              let cls = 'option';
-              if (i === guess.correctOption) cls += ' right';
-              else if (i === picked) cls += ' wrong';
-              return <button key={name} className={cls} disabled>{name}</button>;
-            })}
+        {guess.status === 'pending' && <button className="btn ghost small" onClick={skip}>Skip</button>}
+
+        {right && (
+          <div className="stack center">
+            <h3>🎉 Yes, it's {p.name}! {guess.coinsAwarded ? `+${guess.coinsAwarded} 🪙` : ''}</h3>
+            <p className="muted small">{p.name} has been told you guessed {their} name. Your chat is open.</p>
+            <div className="row">
+              <button className="btn ghost" onClick={onDone}>Next</button>
+              <button className="btn" onClick={() => navigate(`/chats/${p.id}`)}>💬 Say hi</button>
+            </div>
           </div>
-          {guess.status === 'correct' ? (
-            <>
-              <h3>
-                Yes, it's {p.name}! {guess.coinsAwarded ? `+${guess.coinsAwarded} 🪙` : ''}
-              </h3>
-              <textarea
-                rows={2}
-                maxLength={maxLen}
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder={`Send ${p.name} one message with your like (optional)`}
-              />
-            </>
-          ) : (
-            <h3>Oops, it's {p.name}. No coin this time.</h3>
-          )}
-          <SampleCall user={p} />
-          <div className="row">
-            <button className="btn ghost" onClick={skip} disabled={busy}>Skip</button>
-            <button className="btn" onClick={like} disabled={busy}>
-              {guess.status === 'correct' && message.trim() ? '💌 Send like' : '❤️ Like'}
-            </button>
+        )}
+
+        {wrong && (
+          <div className="stack center">
+            <h3>Not quite 😅</h3>
+            <p className="muted small">You can try {p.nameMask} again tomorrow.</p>
+            <button className="btn" onClick={onDone}>Next person</button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="card discover-info stack">
         <span className="muted small">{labelFor[p.lookingFor]}</span>
@@ -152,7 +118,6 @@ export default function GuessCard({ profile, onDone }) {
           {p.hobbies?.map((h) => <span key={h} className="chip">{h}</span>)}
           {p.likes?.map((h) => <span key={h} className="chip on">{h}</span>)}
         </div>
-        {facts.length > 0 && <div className="chips">{facts.map((f) => <span key={f} className="chip small-chip">{f}</span>)}</div>}
       </div>
     </div>
   );

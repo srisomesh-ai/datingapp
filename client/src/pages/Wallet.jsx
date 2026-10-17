@@ -12,7 +12,7 @@ const TX_LABEL = {
   withdrawal_reversed: 'Withdrawal reversed',
   name_guess: 'Guessed a name',
   sample_call: '1-min sample call',
-  demo_bonus: 'Demo bonus',
+  chat_unlock: 'Unlocked a chat',
 };
 
 function txAmount(t) {
@@ -113,8 +113,9 @@ export default function Wallet() {
       </div>
       <p className="fine">
         Package minutes: 👩 {w.packageMinutes.female ?? 0} · 👨 {w.packageMinutes.male ?? 0}. Earn 🪙 1 for every name you guess
-        right in Discover. 🪙 {meta.sampleCall?.coins} = a {Math.round((meta.sampleCall?.seconds ?? 60) / 60) || 1}-minute sample call with
-        anyone (coins are used only if they accept).
+        right in Discover. 🪙 {meta.sampleCall?.coins} = a {Math.round((meta.sampleCall?.seconds ?? 60) / 60) || 1}-minute call (coins are used
+        only if they answer). Chats: {meta.chat?.freeMessagesPerPerson} free messages each, then {rupees(meta.chat?.unlockPricePaise ?? 0)} to
+        unlock. Calls with people you guessed: {rupees(meta.matchCall?.paisePerMinute ?? 0)}/min.
       </p>
 
       <section className="card stack">

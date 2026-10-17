@@ -1,6 +1,6 @@
 // Wallet, packages and per-minute call billing. Every money movement is
 // written to the transactions ledger inside the same DB transaction.
-import { PACKAGES, PACKAGE_VALIDITY_DAYS, PLATFORM_FEE_PERCENT } from './config.js';
+import { MATCH_CALL, PACKAGES, PACKAGE_VALIDITY_DAYS, PLATFORM_FEE_PERCENT } from './config.js';
 import { all, one, run, tx } from './db.js';
 import { HttpError } from './util.js';
 
@@ -110,10 +110,13 @@ export function chargeMinute(callId) {
       ledger(call.caller_id, 'wallet', 'call_charge', -gross, { refType: 'call', refId: call.id });
     }
 
-    const { fee, hostShare } = splitFee(gross);
-    run('UPDATE users SET earnings_paise = earnings_paise + ? WHERE id = ?', hostShare, call.callee_id);
-    ledger(call.callee_id, 'earnings', 'call_earning', hostShare, { refType: 'call', refId: call.id });
-    ledger(null, 'platform', 'platform_fee', fee, { refType: 'call', refId: call.id, note: `${PLATFORM_FEE_PERCENT}% of ${gross}` });
+    // Calls between connected users ('match' rate) earn the callee nothing: the platform keeps it.
+    const { fee, hostShare } = call.rate_key === MATCH_CALL.rateKey ? { fee: gross, hostShare: 0 } : splitFee(gross);
+    if (hostShare) {
+      run('UPDATE users SET earnings_paise = earnings_paise + ? WHERE id = ?', hostShare, call.callee_id);
+      ledger(call.callee_id, 'earnings', 'call_earning', hostShare, { refType: 'call', refId: call.id });
+    }
+    ledger(null, 'platform', 'platform_fee', fee, { refType: 'call', refId: call.id, note: hostShare ? `${PLATFORM_FEE_PERCENT}% of ${gross}` : 'match call' });
 
     run(
       `UPDATE calls SET billed_minutes = billed_minutes + 1, caller_paid_paise = caller_paid_paise + ?,
