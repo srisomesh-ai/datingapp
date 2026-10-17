@@ -52,6 +52,7 @@ Checklist:
 - [ ] Both phones have the chat; a man unlocks it for ₹49 after 10 messages, a woman chats free
 - [ ] Guess a woman's name wrong: she gets "👀 Someone tried to guess your name", sees you under Chats → tried, and can tap Start chat
 - [ ] Profile → Safety: set an age range and "new chats per day" and check that Discover respects them
+- [ ] Profile → Verify me: take the pose selfie; approve it on the Admin page; the blue tick ✓ appears (Friend mode needs it)
 - [ ] Video call between you: ₹5/min, or 🪙 10 for 1 minute
 - [ ] Profile → turn on **Friend mode** and go available, then from the other phone call them in **Find a Friend**: per-minute billing and earnings
 - [ ] 🪙 10 sample call. Guess 10 names, or give yourself test coins on the server:

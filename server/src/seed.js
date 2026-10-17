@@ -62,8 +62,8 @@ PEOPLE.forEach(([name, gender, city, bio, isHost], idx) => {
   const { lastInsertRowid } = run(
     `INSERT INTO users (email, password_hash, name, gender, interested_in, looking_for, dob, city, bio, hobbies, likes,
        favorite_cuisine, weekend_style, chronotype, dream_destination, has_photo, photo_version, is_host, host_available, host_headline,
-       wallet_paise)
-     VALUES (?, ?, ?, ?, 'everyone', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?, ?, ?, 50000)`,
+       wallet_paise, verification_status)
+     VALUES (?, ?, ?, ?, 'everyone', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?, ?, ?, 50000, ?)`,
     email,
     hash,
     name,
@@ -81,6 +81,7 @@ PEOPLE.forEach(([name, gender, city, bio, isHost], idx) => {
     isHost,
     isHost,
     isHost ? 'Here to listen, laugh and chat 🙂' : '',
+    isHost || idx % 3 !== 0 ? 'verified' : 'none', // most demo users have the blue tick
   );
   ledger(Number(lastInsertRowid), 'wallet', 'topup', 50000, { note: 'Demo credit' });
   const dir = path.join(UPLOAD_DIR, String(lastInsertRowid), 'v1');

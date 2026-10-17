@@ -235,3 +235,18 @@ main { flex: 1; min-height: 0; overflow-y: auto; width: 100%; max-width: 560px; 
 .tried-person { flex: 0 0 120px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; background: var(--surface-2); border-radius: 14px; padding: 10px 8px; }
 .tried-person img { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; }
 .tried-person strong { font-size: 0.85rem; }
+
+/* Verification */
+.tick { display: inline-flex; align-items: center; justify-content: center; width: 1.05em; height: 1.05em; border-radius: 50%; background: #3b82f6; color: white; font-size: 0.7em; font-weight: 800; vertical-align: middle; font-family: system-ui, sans-serif; letter-spacing: 0; }
+.verify-cta { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: var(--surface-2); border-radius: 12px; padding: 10px 12px; }
+.pose { display: flex; align-items: center; gap: 12px; }
+.pose-emoji { font-size: 2.4rem; }
+.selfie-frame { aspect-ratio: 1; width: 100%; border-radius: var(--radius); overflow: hidden; background: var(--surface-2); display: flex; align-items: center; justify-content: center; }
+.selfie-frame video, .selfie-frame img { width: 100%; height: 100%; object-fit: cover; }
+.selfie-frame video { transform: scaleX(-1); }
+.warn-card { border-left: 4px solid var(--warn); padding: 8px 12px; background: var(--surface-2); border-radius: 8px; }
+.verify-review { border-top: 1px solid #ffffff10; padding-top: 10px; }
+.verify-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.verify-pair figure { margin: 0; }
+.verify-pair img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 12px; }
+.verify-pair figcaption { font-size: 0.75rem; color: var(--muted); text-align: center; margin-top: 4px; }

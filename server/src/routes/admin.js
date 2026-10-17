@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import { all, one, run } from '../db.js';
 import { processWithdrawal } from '../billing.js';
-import { HttpError, requireAdmin, requireAuth, requireOneOf } from '../util.js';
+import { HttpError, publicView, requireAdmin, requireAuth, requireOneOf } from '../util.js';
+import fs from 'node:fs';
+import { VERIFICATION } from '../config.js';
+import { emitToUser } from '../realtime/hub.js';
+import { selfiePath } from './verification.js';
 
 const router = Router();
 router.use(requireAuth, requireAdmin);
@@ -10,6 +14,8 @@ router.get('/stats', (_req, res) => {
   res.json({
     users: one('SELECT COUNT(*) AS n FROM users').n,
     friends: one('SELECT COUNT(*) AS n FROM users WHERE is_host = 1').n,
+    verified: one("SELECT COUNT(*) AS n FROM users WHERE verification_status = 'verified'").n,
+    pendingVerifications: one("SELECT COUNT(*) AS n FROM verification_requests WHERE status = 'pending'").n,
     namesGuessed: one("SELECT COUNT(*) AS n FROM name_guesses WHERE status = 'correct'").n,
     connections: one('SELECT COUNT(*) AS n FROM connections').n,
     chatUnlocks: one('SELECT COUNT(*) AS n FROM chat_unlocks').n,
@@ -52,6 +58,61 @@ router.get('/reports', (_req, res) => {
 
 router.post('/reports/:id/close', (req, res) => {
   run("UPDATE reports SET status = 'closed' WHERE id = ?", Number(req.params.id));
+  res.json({ ok: true });
+});
+
+// ---- Selfie verification review ----
+router.get('/verifications', (req, res) => {
+  const status = ['pending', 'approved', 'rejected'].includes(req.query.status) ? req.query.status : 'pending';
+  const rows = all(
+    `SELECT r.*, u.id AS uid FROM verification_requests r JOIN users u ON u.id = r.user_id
+     WHERE r.status = ? ORDER BY r.id ${status === 'pending' ? 'ASC' : 'DESC'} LIMIT 100`,
+    status,
+  );
+  res.json({
+    verifications: rows.map((r) => {
+      const u = one('SELECT * FROM users WHERE id = ?', r.uid);
+      return {
+        id: r.id,
+        status: r.status,
+        reason: r.reason,
+        createdAt: r.created_at,
+        pose: VERIFICATION.poses.find((p) => p.id === r.pose),
+        user: { ...publicView(u), email: u.email },
+        // The profile photo may have changed since the selfie was taken.
+        photoChanged: u.photo_version !== r.photo_version,
+      };
+    }),
+  });
+});
+
+router.get('/verifications/:id/selfie', (req, res) => {
+  const r = one('SELECT * FROM verification_requests WHERE id = ?', Number(req.params.id));
+  const file = r && selfiePath(r.user_id, r.id);
+  if (!r || !fs.existsSync(file)) throw new HttpError(404, 'Selfie not found');
+  res.set('Cache-Control', 'private, no-store');
+  res.sendFile(file);
+});
+
+router.post('/verifications/:id', (req, res) => {
+  const action = requireOneOf(req.body?.action, ['approve', 'reject'], 'action');
+  const r = one("SELECT * FROM verification_requests WHERE id = ? AND status = 'pending'", Number(req.params.id));
+  if (!r) throw new HttpError(404, 'Pending verification not found');
+  const reason = action === 'reject' ? String(req.body?.reason ?? '').trim().slice(0, 200) || "The selfie didn't match your photo or the pose" : null;
+  run(
+    'UPDATE verification_requests SET status = ?, reason = ?, reviewer_id = ?, reviewed_at = CURRENT_TIMESTAMP WHERE id = ?',
+    action === 'approve' ? 'approved' : 'rejected',
+    reason,
+    req.user.id,
+    r.id,
+  );
+  if (action === 'approve') {
+    run("UPDATE users SET verification_status = 'verified', verification_note = NULL, verified_at = CURRENT_TIMESTAMP WHERE id = ?", r.user_id);
+    emitToUser(r.user_id, 'verification:result', { status: 'verified', message: '✅ You are verified! A blue tick now shows on your profile.' });
+  } else {
+    run("UPDATE users SET verification_status = 'rejected', verification_note = ? WHERE id = ?", reason, r.user_id);
+    emitToUser(r.user_id, 'verification:result', { status: 'rejected', message: `Verification not approved: ${reason}` });
+  }
   res.json({ ok: true });
 });
 

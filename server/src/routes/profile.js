@@ -42,6 +42,7 @@ router.put('/profile', (req, res) => {
   const minAge = updates.guess_min_age !== undefined ? updates.guess_min_age : req.user.guess_min_age;
   const maxAge = updates.guess_max_age !== undefined ? updates.guess_max_age : req.user.guess_max_age;
   if (minAge != null && maxAge != null && minAge > maxAge) throw new HttpError(400, 'Minimum age must not be above maximum age');
+  if (b.guessVerifiedOnly !== undefined) updates.guess_verified_only = b.guessVerifiedOnly ? 1 : 0;
   if (b.dailyChatLimit !== undefined) {
     if (!SAFETY.dailyChatOptions.includes(Number(b.dailyChatLimit))) throw new HttpError(400, 'Invalid daily chat limit');
     updates.daily_chat_limit = Number(b.dailyChatLimit);
@@ -75,6 +76,11 @@ router.post('/profile/photo', upload.single('full'), (req, res) => {
   fs.rmSync(path.join(UPLOAD_DIR, String(req.user.id), `v${req.user.photo_version}`), { recursive: true, force: true });
 
   run('UPDATE users SET has_photo = 1, photo_version = ? WHERE id = ?', version, req.user.id);
+  // A new photo needs a new selfie check: the tick must match the face people see.
+  if (req.user.verification_status === 'verified' || req.user.verification_status === 'pending') {
+    run("UPDATE users SET verification_status = 'none', verification_note = 'Your photo changed. Please verify again.' WHERE id = ?", req.user.id);
+    run("UPDATE verification_requests SET status = 'cancelled' WHERE user_id = ? AND status = 'pending'", req.user.id);
+  }
   res.json({ user: selfView(one('SELECT * FROM users WHERE id = ?', req.user.id)) });
 });
 

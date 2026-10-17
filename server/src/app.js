@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { Server } from 'socket.io';
-import { CATALOG, ICE_SERVERS, PACKAGES, PAYG_RATES, PAYMENTS_MODE, PLATFORM_FEE_PERCENT, NAME_GUESS, PROFILE_MIN, RAZORPAY_KEY_ID, SAMPLE_CALL, CHAT, MATCH_CALL, SAFETY } from './config.js';
+import { CATALOG, ICE_SERVERS, PACKAGES, PAYG_RATES, PAYMENTS_MODE, PLATFORM_FEE_PERCENT, NAME_GUESS, PROFILE_MIN, RAZORPAY_KEY_ID, SAMPLE_CALL, CHAT, MATCH_CALL, SAFETY, VERIFICATION } from './config.js';
 import { run } from './db.js';
 import { HttpError, requireAuth, userFromToken, COOKIE } from './util.js';
 import { iceServersFor } from './ice.js';
@@ -18,6 +18,7 @@ import messageRoutes from './routes/messages.js';
 import friendRoutes from './routes/friends.js';
 import walletRoutes from './routes/wallet.js';
 import adminRoutes from './routes/admin.js';
+import verificationRoutes from './routes/verification.js';
 
 const CLIENT_DIST = new URL('../../client/dist', import.meta.url).pathname;
 
@@ -37,6 +38,7 @@ export function createServer() {
       sampleCall: SAMPLE_CALL,
       chat: CHAT,
       safety: SAFETY,
+      verification: { hostsMustBeVerified: VERIFICATION.hostsMustBeVerified },
       matchCall: MATCH_CALL,
       rates: PAYG_RATES,
       packages: PACKAGES,
@@ -55,6 +57,7 @@ export function createServer() {
   app.use('/api', messageRoutes);
   app.use('/api', friendRoutes);
   app.use('/api', walletRoutes);
+  app.use('/api', verificationRoutes);
   app.use('/api/admin', adminRoutes);
   app.use('/api', (_req, _res, next) => next(new HttpError(404, 'Not found')));
 

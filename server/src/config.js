@@ -118,6 +118,19 @@ export const SAFETY = {
   whoTriedDays: 7, // how far back "tried to guess you" goes
 };
 
+// Selfie verification: a live selfie doing a random pose, reviewed by an admin.
+export const VERIFICATION = {
+  poses: [
+    { id: 'peace', emoji: '✌️', text: 'Show a peace sign next to your face' },
+    { id: 'thumbs', emoji: '👍', text: 'Give a thumbs up next to your face' },
+    { id: 'nose', emoji: '☝️', text: 'Touch your nose with one finger' },
+    { id: 'ear', emoji: '👂', text: 'Hold one ear with your hand' },
+    { id: 'palm', emoji: '🖐️', text: 'Show an open palm next to your face' },
+    { id: 'chin', emoji: '🤔', text: 'Rest your chin on your hand' },
+  ],
+  hostsMustBeVerified: true, // Find a Friend: only verified people can earn
+};
+
 // Calls between connected people are paid (no free calls). Platform keeps it all.
 export const MATCH_CALL = { rateKey: 'match', paisePerMinute: 5_00 };
 export const SKIP_DAYS = 3;

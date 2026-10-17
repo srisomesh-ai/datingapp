@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext.jsx';
 import { api, photoUrl } from '../lib/api.js';
 import { preparePhoto } from '../lib/photo.js';
@@ -32,6 +32,21 @@ function Choice({ options, value, onChange }) {
   );
 }
 
+/** Blue tick status + link to the selfie check. */
+function VerificationStatus({ user }) {
+  const v = user.verification ?? {};
+  if (v.status === 'verified') return <p className="small"><span className="tick">✓</span> Verified with a live selfie</p>;
+  if (v.status === 'pending') return <p className="small muted">⏳ Your verification selfie is being reviewed</p>;
+  return (
+    <div className="verify-cta">
+      <span className="small">
+        {v.note ? `${v.note} ` : ''}Get a blue tick <span className="tick">✓</span>: people trust verified profiles more.
+      </span>
+      <Link className="btn small" to="/verify">Verify me</Link>
+    </div>
+  );
+}
+
 export default function Profile() {
   const { user, setUser, meta, toast, logout } = useApp();
   const navigate = useNavigate();
@@ -58,6 +73,7 @@ export default function Profile() {
         guessMinAge: user.guessMinAge ?? '',
         guessMaxAge: user.guessMaxAge ?? '',
         dailyChatLimit: user.dailyChatLimit,
+        guessVerifiedOnly: user.guessVerifiedOnly,
       });
     }
   }, [user, form]);
@@ -132,7 +148,8 @@ export default function Profile() {
             <input type="file" accept="image/*" hidden onChange={onPhoto} disabled={uploading} />
           </label>
         </div>
-        <p className="fine">Use a clear photo of your face.</p>
+        <p className="fine">Use a clear photo of your face.{user.verified && ' Changing it removes your blue tick until you verify again.'}</p>
+        <VerificationStatus user={user} />
       </section>
 
       <section className="card stack">
@@ -189,6 +206,10 @@ export default function Profile() {
           <span className="muted">to</span>
           <input type="number" min={meta.safety?.minAge ?? 18} max={meta.safety?.maxAge ?? 99} placeholder="Max" value={form.guessMaxAge} onChange={set('guessMaxAge')} />
         </div>
+        <label className="switch">
+          <input type="checkbox" checked={Boolean(form.guessVerifiedOnly)} onChange={(e) => set('guessVerifiedOnly')(e.target.checked)} />
+          <span>Only verified people <span className="tick">✓</span> can guess my name</span>
+        </label>
         <label>
           New chats per day
           <select value={form.dailyChatLimit} onChange={(e) => set('dailyChatLimit')(Number(e.target.value))}>
@@ -207,10 +228,16 @@ export default function Profile() {
             List yourself in <b>Find a Friend</b>. People pay to video call you and you keep {100 - fee}% of every minute
             ({fee}% platform fee). Your photo is visible to callers.
           </p>
-          <label className="switch">
-            <input type="checkbox" checked={user.isHost} onChange={(e) => setHost({ isHost: e.target.checked })} />
-            <span>Friend mode {user.isHost ? 'on' : 'off'}</span>
-          </label>
+          {!user.verified && meta.verification?.hostsMustBeVerified && !user.isHost ? (
+            <p className="small">
+              Friends must be verified first. <Link to="/verify">Get your blue tick ✓</Link>
+            </p>
+          ) : (
+            <label className="switch">
+              <input type="checkbox" checked={user.isHost} onChange={(e) => setHost({ isHost: e.target.checked })} />
+              <span>Friend mode {user.isHost ? 'on' : 'off'}</span>
+            </label>
+          )}
           {user.isHost && (
             <>
               <label className="switch">

@@ -11,6 +11,7 @@ process.env.BILLING_INTERVAL_MS = '150';
 process.env.RING_TIMEOUT_MS = '2000';
 process.env.SAMPLE_CALL_SECONDS = '1';
 process.env.GUESSES_PER_DAY = '2';
+process.env.ADMIN_EMAILS = 'boss@example.com';
 process.env.TURN_URLS = 'turn:turn.example.test:3478?transport=udp,turn:turn.example.test:3478?transport=tcp';
 process.env.TURN_SECRET = 'test-turn-secret';
 
@@ -245,6 +246,70 @@ test('wallet top-up (mock), packages and validation', async () => {
   assert.equal(r.body.walletPaise, 230_00);
   assert.equal(r.body.packageMinutes.female, 15);
   assert.equal((await api(kiran.token, 'POST', '/api/packages/female-60/buy')).status, 402);
+});
+
+async function verify(user, boss, action = 'approve') {
+  const pose = await api(user.token, 'POST', '/api/verification/pose');
+  assert.equal(pose.status, 200, JSON.stringify(pose.body));
+  const form = new FormData();
+  form.append('selfie', fakeJpeg(), 'selfie.jpg');
+  const up = await api(user.token, 'POST', '/api/verification', form);
+  assert.equal(up.status, 201);
+  assert.equal(up.body.user.verification.status, 'pending');
+  const queue = await api(boss.token, 'GET', '/api/admin/verifications');
+  const item = queue.body.verifications.find((v) => v.user.id === user.id);
+  assert.equal(item.pose.id, pose.body.pose.id);
+  assert.equal((await api(boss.token, 'GET', `/api/admin/verifications/${item.id}/selfie`)).status, 200);
+  const r = await api(boss.token, 'POST', `/api/admin/verifications/${item.id}`, { action, reason: action === 'reject' ? 'Face not clear' : undefined });
+  assert.equal(r.status, 200);
+}
+
+test('selfie verification: random pose, admin review, blue tick; hosts must be verified', async () => {
+  const boss = await makeUser('Boss', 'male');
+  // Only admins can review; selfies aren't public.
+  assert.equal((await api(meera.token, 'GET', '/api/admin/verifications')).status, 403);
+  // Not verified yet: can't become a Find a Friend host.
+  let r = await api(meera.token, 'PUT', '/api/friends/me', { isHost: true });
+  assert.equal(r.status, 412);
+  assert.equal(r.body.code, 'verification_required');
+
+  // Rejected first, with a reason she can see.
+  await verify(meera, boss, 'reject');
+  let me = (await api(meera.token, 'GET', '/api/verification')).body;
+  assert.equal(me.status, 'rejected');
+  assert.equal(me.note, 'Face not clear');
+  // Try again and get approved.
+  const mSock = await connect(meera.token);
+  const result = once(mSock, 'verification:result');
+  await verify(meera, boss);
+  assert.equal((await result).status, 'verified');
+  mSock.close();
+  assert.equal((await api(meera.token, 'GET', '/api/profile')).body.user.verified, true);
+  // The tick shows to others.
+  assert.equal((await api(kiran.token, 'GET', `/api/users/${meera.id}`)).body.user.verified, true);
+
+  // A new profile photo removes the tick until she verifies again.
+  const form = new FormData();
+  form.append('full', fakeJpeg(), 'full.jpg');
+  r = await api(meera.token, 'POST', '/api/profile/photo', form);
+  assert.equal(r.body.user.verified, false);
+  assert.match(r.body.user.verification.note, /photo changed/);
+  await verify(meera, boss);
+  assert.equal((await api(meera.token, 'GET', '/api/profile')).body.user.verified, true);
+});
+
+test('"only verified people can guess me"', async () => {
+  await api(asha.token, 'PUT', '/api/profile', { guessVerifiedOnly: true });
+  // Kiran isn't verified: Asha disappears from his Discover and he can't guess.
+  assert.equal((await api(kiran.token, 'GET', '/api/discover')).body.profiles.some((p) => p.id === asha.id), false);
+  db.prepare("INSERT OR REPLACE INTO name_guesses (visitor_id, target_id, mask, options, answer) VALUES (?, ?, 'A _ _ _', '[\"Asha\",\"Anu\",\"Amala\",\"Aarti\"]', 0)").run(kiran.id, asha.id);
+  const r = await api(kiran.token, 'POST', `/api/discover/${asha.id}/guess`, { optionIndex: 0 });
+  assert.equal(r.status, 409);
+  assert.equal(r.body.code, 'verified_only');
+  // Meera is verified, so she still sees Asha.
+  assert.equal((await api(meera.token, 'GET', '/api/discover')).body.profiles.some((p) => p.id === asha.id), true);
+  await api(asha.token, 'PUT', '/api/profile', { guessVerifiedOnly: false });
+  db.prepare('DELETE FROM name_guesses WHERE visitor_id = ? AND target_id = ?').run(kiran.id, asha.id);
 });
 
 test('only listed friends with complete profiles can go available', async () => {

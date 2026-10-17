@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useApp } from '../context/AppContext.jsx';
 import { useCall } from '../context/CallContext.jsx';
 import Avatar from '../components/Avatar.jsx';
+import Tick from '../components/Tick.jsx';
 import { api, displayName, rupees, timeAgo } from '../lib/api.js';
 
 /** Call options for a connection: no free calls, so pay per minute or spend coins on one minute. */
@@ -133,7 +134,7 @@ export default function Chat() {
         <button className="icon" onClick={() => navigate('/chats')} aria-label="Back">←</button>
         <Avatar user={other} online={info.online} size={40} />
         <div className="grow">
-          <strong>{other.name}</strong>
+          <strong>{other.name} <Tick user={other} /></strong>
           <div className="muted small">{info.online ? 'Online' : 'Offline'}</div>
         </div>
         {info.canMessage && (

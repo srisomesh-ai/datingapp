@@ -1,5 +1,6 @@
 // "Find a Friend": opt-in friends anyone can pay to voice/video call.
 import { Router } from 'express';
+import { VERIFICATION } from '../config.js';
 import { all, one, run } from '../db.js';
 import { affordableMinutes } from '../billing.js';
 import { getGuess, nameKnown } from '../connections.js';
@@ -22,11 +23,13 @@ router.get('/friends', (req, res) => {
   const rows = all(
     `SELECT u.* FROM users u
      WHERE u.is_host = 1 AND u.is_banned = 0 AND u.has_photo = 1 AND u.id != ? AND (? IS NULL OR u.gender = ?)
+       AND (? = 0 OR u.verification_status = 'verified')
        AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = ? AND b.blocked_id = u.id) OR (b.blocker_id = u.id AND b.blocked_id = ?))
      LIMIT 200`,
     req.user.id,
     gender,
     gender,
+    VERIFICATION.hostsMustBeVerified ? 1 : 0,
     req.user.id,
     req.user.id,
   );
@@ -50,6 +53,9 @@ router.put('/friends/me', (req, res) => {
   const updates = {};
   if (b.isHost !== undefined) {
     if (b.isHost && !isProfileComplete(req.user)) throw new HttpError(412, 'Complete your profile before becoming a friend');
+    if (b.isHost && VERIFICATION.hostsMustBeVerified && req.user.verification_status !== 'verified') {
+      throw new HttpError(412, 'Get verified (blue tick) before becoming a friend', { code: 'verification_required' });
+    }
     updates.is_host = b.isHost ? 1 : 0;
     if (!b.isHost) updates.host_available = 0;
   }

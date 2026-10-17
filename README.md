@@ -10,6 +10,12 @@ This is a web app for finding a soulmate or a friend, built mobile-first. It has
      - **Who can guess me:** an age range. People outside it never see the profile and can't guess.
      - **New chats per day:** default 5 for women, 20 for men. Once reached, the profile is hidden from Discover until tomorrow.
      - **End chat & block** in one tap from the chat menu.
+   - **Selfie verification (blue tick ✓):**
+     - The app asks for a random pose ("✌️ peace sign", "👍 thumbs up"…) and takes a **live camera selfie**; gallery uploads aren't allowed.
+     - An admin compares it with the profile photo on the Admin page and approves or rejects it with a reason.
+     - Verified people show a blue tick in Discover, chats, Find a Friend and calls.
+     - Changing the profile photo removes the tick until the person verifies again.
+     - Options: "Only verified people can guess my name", and **Find a Friend hosts must be verified** to earn (`VERIFICATION.hostsMustBeVerified`).
    - **Guess notifications:**
      - "👀 7 people tried to guess your name today · 2 got it right" at the top of Chats, plus a live alert on every try.
      - People who guessed wrong in the last 7 days are listed. Tap **Start chat** to open a chat with any of them (they're notified).

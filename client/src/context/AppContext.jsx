@@ -51,12 +51,17 @@ export function AppProvider({ children }) {
     s.on('guess:correct', onGuessed);
     s.on('guess:attempt', onGuessed);
     s.on('guess:accepted', onGuessed);
+    const onVerified = ({ message, status }) => {
+      toast(message, status === 'verified' ? 'love' : 'warn');
+      refreshUser();
+    };
+    s.on('verification:result', onVerified);
     s.on('message:new', onMessage);
     return () => {
       s.disconnect();
       setSocket(null);
     };
-  }, [user?.id, toast]);
+  }, [user?.id, toast, refreshUser]);
 
   const logout = useCallback(async () => {
     await api('/auth/logout', { method: 'POST' }).catch(() => {});

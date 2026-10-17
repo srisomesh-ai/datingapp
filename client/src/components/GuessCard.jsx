@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext.jsx';
 import { api, labelFor, photoUrl } from '../lib/api.js';
+import Tick from './Tick.jsx';
 
 /**
  * Discover card: see the photo, pick the right name. A right guess opens a chat
@@ -53,7 +54,7 @@ export default function GuessCard({ profile, onDone, guessesLeft, onGuessesLeft 
           <img className="discover-photo" src={photoUrl(p)} alt="" />
           <div className="photo-caption">
             <h2 className={right ? '' : 'masked'}>
-              {right ? p.name : p.nameMask}, {p.age}
+              {right ? p.name : p.nameMask}, {p.age} <Tick user={p} />
             </h2>
             <span>{p.city}</span>
           </div>

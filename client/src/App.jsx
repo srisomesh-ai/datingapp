@@ -10,6 +10,7 @@ import Friends from './pages/Friends.jsx';
 import Wallet from './pages/Wallet.jsx';
 import Profile from './pages/Profile.jsx';
 import Admin from './pages/Admin.jsx';
+import Verify from './pages/Verify.jsx';
 import { APP_NAME, rupees } from './lib/api.js';
 
 
@@ -43,6 +44,7 @@ function Shell() {
           <Route path="/friends" element={<Friends />} />
           <Route path="/wallet" element={<Wallet />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/verify" element={<Verify />} />
           {user.isAdmin && <Route path="/admin" element={<Admin />} />}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
