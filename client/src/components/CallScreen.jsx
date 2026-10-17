@@ -45,7 +45,10 @@ export default function CallScreen() {
   if (call.phase === 'idle') return null;
   const peer = call.peer ?? {};
   const isVideo = call.media === 'video';
-  const paid = call.mode === 'paid';
+  // A paid call between connected people ('match'): the caller pays per minute, nobody earns.
+  const matchCall = call.mode === 'match' || call.kind === 'match' || call.rate?.rateKey === 'match';
+  const paid = call.mode === 'paid' || matchCall;
+  const friendCall = paid && !matchCall;
   const sample = call.mode === 'sample';
   const name = displayName(peer);
 
@@ -56,9 +59,9 @@ export default function CallScreen() {
           <Avatar user={peer} size={120} />
           <h2>{name}</h2>
           <p className="muted">
-            Incoming {isVideo ? 'video' : 'voice'} call{paid ? ' · paid friend call' : ''}{sample ? ' · 1-minute sample call' : ''}
+            Incoming {isVideo ? 'video' : 'voice'} call{friendCall ? ' · paid friend call' : ''}{sample ? ' · 1-minute sample call' : ''}
           </p>
-          {paid && call.rate && (
+          {friendCall && call.rate && (
             <p className="pill">
               You earn {rupees(Math.round((call.rate.paisePerMinute * (100 - (meta?.platformFeePercent ?? 25))) / 100))}/min
             </p>
@@ -84,9 +87,9 @@ export default function CallScreen() {
               <div>Billed minutes: <b>{s.billedMinutes}</b></div>
               {call.role === 'caller' ? (
                 <div>You paid: <b>{rupees(s.callerPaidPaise)}</b></div>
-              ) : (
+              ) : friendCall ? (
                 <div>You earned: <b>{rupees(s.hostEarnedPaise)}</b></div>
-              )}
+              ) : null}
             </div>
           )}
           {s.coinsSpent > 0 && call.role === 'caller' && (
@@ -119,7 +122,7 @@ export default function CallScreen() {
             ⏳ {clock(Math.max(0, call.limitSeconds - seconds))} left · sample call
           </span>
         )}
-        {paid && call.phase === 'active' && b && (
+        {paid && call.phase === 'active' && b && (call.role === 'caller' || friendCall) && (
           <span className="pill">
             {call.role === 'caller'
               ? `${rupees(b.paidPaise ?? 0)} · ${b.minutesLeft} min left`

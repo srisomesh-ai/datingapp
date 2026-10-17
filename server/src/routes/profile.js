@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { CATALOG, UPLOAD_DIR } from '../config.js';
 import { one, run } from '../db.js';
-import { getGuess, isMatched, nameKnown } from '../connections.js';
+import { getGuess, isConnected, nameKnown } from '../connections.js';
 import { HttpError, isBlockedEitherWay, publicView, requireAuth, requireOneOf, requireString, selfView } from '../util.js';
 
 const router = Router();
@@ -83,7 +83,7 @@ router.get('/users/:id', (req, res) => {
   const g = known ? null : getGuess(req.user.id, target.id);
   res.json({
     user: publicView(target, { hideName: !known, mask: g?.mask ?? null }),
-    matched: isMatched(req.user.id, target.id),
+    connected: isConnected(req.user.id, target.id),
   });
 });
 

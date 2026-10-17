@@ -93,12 +93,22 @@ export const TURN_TTL_SECONDS = 6 * 3600;
 
 // ---- Guess the name -----------------------------------------------------
 
+// See a photo, pick the right name: you're connected (chat opens for both of you).
 export const NAME_GUESS = {
   options: 4, // names to choose from
   coinsPerCorrect: 1,
   dailyCoinLimit: 50, // stops coin farming
-  messageMaxLength: 300, // the one intro message a correct guess unlocks
+  retryHours: 24, // after a wrong guess, try the same person again later
 };
+
+// Chat between connected people: free up to a limit, then pay to keep chatting.
+export const CHAT = {
+  freeMessagesPerPerson: 10, // each person, per chat
+  unlockPricePaise: 49_00, // unlimited messages from you in that chat
+};
+
+// Calls between connected people are paid (no free calls). Platform keeps it all.
+export const MATCH_CALL = { rateKey: 'match', paisePerMinute: 5_00 };
 export const SKIP_DAYS = 3;
 
 // ---- Profile catalogs (single source of truth for the client too) ------

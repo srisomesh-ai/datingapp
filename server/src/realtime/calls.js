@@ -1,9 +1,9 @@
 // Call lifecycle + WebRTC signaling relay + per-minute billing timers.
 // Media flows peer-to-peer (WebRTC); the server only relays SDP/ICE and bills.
-import { BILLING_INTERVAL_MS, LOW_BALANCE_MINUTES, RING_TIMEOUT_MS, SAMPLE_CALL } from '../config.js';
+import { BILLING_INTERVAL_MS, LOW_BALANCE_MINUTES, MATCH_CALL, RING_TIMEOUT_MS, SAMPLE_CALL } from '../config.js';
 import { one, run, tx } from '../db.js';
 import { affordableMinutes, chargeMinute } from '../billing.js';
-import { getGuess, isMatched, nameKnown } from '../connections.js';
+import { getGuess, isConnected, nameKnown } from '../connections.js';
 import { iceServersFor } from '../ice.js';
 import { emitToUser, isOnline } from './hub.js';
 import { hostRate, isBlockedEitherWay, publicView } from '../util.js';
@@ -89,12 +89,16 @@ function spendSampleCoins(live) {
 export function registerCallHandlers(io, socket) {
   const me = socket.data.user;
 
-  socket.on('call:start', ({ to, media, mode } = {}, ack = () => {}) => {
+  // Modes: 'paid' = Find a Friend (friend earns), 'match' = someone you're connected with
+  // (per-minute, platform keeps it), 'sample' = 1 minute for coins with anyone.
+  socket.on('call:start', ({ to, media, mode: requested } = {}, ack = () => {}) => {
     try {
       const callee = one('SELECT * FROM users WHERE id = ? AND is_banned = 0', Number(to));
       if (!callee || callee.id === me.id) return ack({ error: 'User not found' });
       if (!['audio', 'video'].includes(media)) return ack({ error: 'Invalid call type' });
-      if (!['paid', 'free', 'sample'].includes(mode)) return ack({ error: 'Invalid call mode' });
+      if (!['paid', 'match', 'sample'].includes(requested)) return ack({ error: 'Invalid call mode' });
+      // Match calls are billed like friend calls (stored as 'paid' with the 'match' rate).
+      const mode = requested === 'match' ? 'paid' : requested;
       if (isBlockedEitherWay(me.id, callee.id)) return ack({ error: 'You cannot call this person' });
       if (isBusy(me.id)) return ack({ error: 'You are already in a call' });
       // Don't leak a name the caller hasn't guessed yet.
@@ -104,14 +108,19 @@ export function registerCallHandlers(io, socket) {
       if (isBusy(callee.id)) return ack({ error: `${label} is on another call` });
 
       let rate = { rateKey: null, paisePerMinute: 0 };
-      if (mode === 'paid') {
+      if (requested === 'paid') {
         if (!callee.is_host || !callee.host_available) return ack({ error: `${callee.name} is not taking calls right now` });
         rate = hostRate(callee.gender);
         if (affordableMinutes(me.id, rate.rateKey, rate.paisePerMinute) < 1) {
           return ack({ error: 'Not enough balance. Add money or buy a package.', code: 'insufficient_balance' });
         }
+      } else if (requested === 'match') {
+        if (!isConnected(me.id, callee.id)) return ack({ error: 'Guess their name right first to call them' });
+        rate = { rateKey: MATCH_CALL.rateKey, paisePerMinute: MATCH_CALL.paisePerMinute };
+        if (affordableMinutes(me.id, rate.rateKey, rate.paisePerMinute) < 1) {
+          return ack({ error: 'Not enough balance. Add money to call.', code: 'insufficient_balance' });
+        }
       } else if (mode === 'sample') {
-        if (isMatched(me.id, callee.id)) return ack({ error: 'You are matched, so calls are free. Use the call button in your chat.' });
         if (one('SELECT coins FROM users WHERE id = ?', me.id).coins < SAMPLE_CALL.coins) {
           return ack({ error: `You need 🪙 ${SAMPLE_CALL.coins} for a sample call. Guess names in Discover to earn coins.`, code: 'insufficient_coins' });
         }
@@ -122,9 +131,7 @@ export function registerCallHandlers(io, socket) {
           callee.id,
           `-${SAMPLE_CALL.perPersonHours} hours`,
         );
-        if (recent) return ack({ error: `You already had a sample call with ${label} today. Like them to match and talk free!` });
-      } else if (!isMatched(me.id, callee.id)) {
-        return ack({ error: 'You can call for free once you both like each other' });
+        if (recent) return ack({ error: `You already used a coin call with ${label} today. Call per minute to keep talking.` });
       }
 
       const { lastInsertRowid } = run(
@@ -158,6 +165,7 @@ export function registerCallHandlers(io, socket) {
         from: publicView(me),
         media,
         mode,
+        kind: requested,
         rate: mode === 'paid' ? rate : null,
         limitSeconds: mode === 'sample' ? SAMPLE_CALL.seconds : null,
       });
@@ -166,6 +174,7 @@ export function registerCallHandlers(io, socket) {
         callId,
         iceServers: iceServersFor(me.id),
         callee: publicView(callee, { hideName: !known, mask: getGuess(me.id, callee.id)?.mask ?? null }),
+        kind: requested,
         rate: mode === 'paid' ? rate : null,
         limitSeconds: mode === 'sample' ? SAMPLE_CALL.seconds : null,
       });

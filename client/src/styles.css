@@ -129,6 +129,7 @@ main { flex: 1; min-height: 0; overflow-y: auto; width: 100%; max-width: 560px; 
   padding: 14px 16px; border-radius: 14px; font: inherit; cursor: pointer; transition: 0.2s;
 }
 .option:hover:not(:disabled) { border-color: #ffffff30; }
+.option:disabled { opacity: 1; cursor: default; color: var(--text); }
 .option.picked { border-color: var(--brand); }
 .option.right { border-color: var(--good); background: #34d39922; }
 .option.wrong { border-color: var(--bad); background: #f8717122; animation: shake 0.4s; }
@@ -214,12 +215,15 @@ main { flex: 1; min-height: 0; overflow-y: auto; width: 100%; max-width: 560px; 
 .toast.love { border-left: 4px solid var(--brand); }
 @keyframes drop { from { transform: translateY(10px); opacity: 0; } }
 
-/* Demo build */
-.demo-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 16px; background: #fbbf24; color: #1a1300; font-size: 0.75rem; }
-.demo-bar button { border: 0; border-radius: 999px; background: #1a1300; color: #fbbf24; padding: 5px 10px; font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
-.demo-note { display: inline-block; margin-top: 10px; }
 
 /* Sample call */
 .sample-call { display: flex; flex-direction: column; gap: 8px; background: var(--surface-2); border-radius: 12px; padding: 10px 12px; }
 .sample-call.compact { margin-top: 8px; padding: 8px 10px; }
 .pill-warn { background: var(--bad); color: white; }
+
+/* Chat limits & call options */
+.free-left { text-align: center; font-size: 0.78rem; color: var(--muted); padding: 4px; background: var(--surface); }
+.free-left.low { color: var(--warn); }
+.unlock { margin: 8px 12px; }
+.sheet-backdrop { position: fixed; inset: 0; z-index: 15; background: #0008; display: flex; align-items: flex-end; justify-content: center; }
+.sheet { width: 100%; max-width: 560px; border-radius: var(--radius) var(--radius) 0 0; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }

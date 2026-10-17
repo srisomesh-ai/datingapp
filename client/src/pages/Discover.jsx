@@ -5,7 +5,7 @@ import GuessCard from '../components/GuessCard.jsx';
 import { api } from '../lib/api.js';
 
 export default function Discover() {
-  const { user, toast } = useApp();
+  const { user, toast, socket } = useApp();
   const [profiles, setProfiles] = useState(null);
   const [index, setIndex] = useState(0);
 
@@ -24,6 +24,13 @@ export default function Discover() {
   useEffect(() => {
     if (user.profileComplete) load();
   }, [user.profileComplete, load]);
+
+  // Someone guessed my name: we're connected now, so they leave my Discover.
+  useEffect(() => {
+    const onGuessed = ({ user: by }) => setProfiles((list) => list?.filter((p, i) => i < index || p.id !== by.id) ?? list);
+    socket?.on('guess:correct', onGuessed);
+    return () => socket?.off('guess:correct', onGuessed);
+  }, [socket, index]);
 
   if (!user.profileComplete) {
     return (
