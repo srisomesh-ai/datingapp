@@ -30,6 +30,7 @@ export function ageAllowed(target, visitor) {
 
 /** Whether `visitor` may see and guess `target` right now; returns a reason when not. */
 export function guessBlockedReason(target, visitor) {
+  if (target.guess_verified_only && visitor.verification_status !== 'verified') return 'verified_only';
   if (!ageAllowed(target, visitor)) return 'not_in_range';
   if (chatLimitReached(target)) return 'daily_limit';
   return null;

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext.jsx';
 import { useCall } from '../context/CallContext.jsx';
 import Avatar from '../components/Avatar.jsx';
+import Tick from '../components/Tick.jsx';
 import SampleCall from '../components/SampleCall.jsx';
 import { api, rupees } from '../lib/api.js';
 
@@ -67,7 +68,7 @@ export default function Friends() {
               <Avatar user={f} size={64} online={f.status === 'available'} />
               <div className="grow">
                 <div className="row-between">
-                  <strong>{f.name}, {f.age}</strong>
+                  <strong>{f.name}, {f.age} <Tick user={f} /></strong>
                   <span className={`status ${f.status}`}>{STATUS[f.status]}</span>
                 </div>
                 <div className="muted small">{f.city}</div>

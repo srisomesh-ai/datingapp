@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext.jsx';
 import { useCall } from '../context/CallContext.jsx';
 import { displayName, rupees } from '../lib/api.js';
 import Avatar from './Avatar.jsx';
+import Tick from './Tick.jsx';
 
 function Video({ stream, muted, className }) {
   const ref = useRef(null);
@@ -57,7 +58,7 @@ export default function CallScreen() {
       <div className="call-overlay">
         <div className="call-center">
           <Avatar user={peer} size={120} />
-          <h2>{name}</h2>
+          <h2>{name} <Tick user={peer} /></h2>
           <p className="muted">
             Incoming {isVideo ? 'video' : 'voice'} call{friendCall ? ' · paid friend call' : ''}{sample ? ' · 1-minute sample call' : ''}
           </p>

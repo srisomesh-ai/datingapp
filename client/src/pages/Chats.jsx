@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext.jsx';
 import Avatar from '../components/Avatar.jsx';
+import Tick from '../components/Tick.jsx';
 import { api, photoUrl, timeAgo } from '../lib/api.js';
 
 /** "7 people tried to guess your name today" + the people who guessed wrong (you can still open a chat). */
@@ -89,7 +90,7 @@ export default function Chats() {
               <Avatar user={c.user} online={c.online} />
               <div className="grow">
                 <div className="row-between">
-                  <strong>{c.user.name}</strong>
+                  <strong>{c.user.name} <Tick user={c.user} /></strong>
                   <small className="muted">{timeAgo(c.lastAt)}</small>
                 </div>
                 <div className="row-between">

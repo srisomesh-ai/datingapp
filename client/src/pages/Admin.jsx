@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext.jsx';
-import { api, rupees, timeAgo } from '../lib/api.js';
+import { api, photoUrl, rupees, timeAgo } from '../lib/api.js';
 
 export default function Admin() {
   const { toast } = useApp();
   const [stats, setStats] = useState(null);
   const [withdrawals, setWithdrawals] = useState([]);
+  const [verifications, setVerifications] = useState([]);
   const [reports, setReports] = useState([]);
 
   const load = useCallback(() => {
     api('/admin/stats').then(setStats).catch((e) => toast(e.message, 'error'));
     api('/admin/withdrawals').then((d) => setWithdrawals(d.withdrawals)).catch(() => {});
+    api('/admin/verifications').then((d) => setVerifications(d.verifications)).catch(() => {});
     api('/admin/reports').then((d) => setReports(d.reports)).catch(() => {});
   }, [toast]);
   useEffect(load, [load]);
@@ -24,6 +26,7 @@ export default function Admin() {
       <div className="stats">
         <div className="card"><small>Users</small><b>{stats.users}</b></div>
         <div className="card"><small>Friends</small><b>{stats.friends}</b></div>
+        <div className="card"><small>Verified ✓</small><b>{stats.verified}</b></div>
         <div className="card"><small>Names guessed</small><b>{stats.namesGuessed}</b></div>
         <div className="card"><small>Chats opened</small><b>{stats.connections}</b></div>
         <div className="card"><small>Chat unlocks</small><b>{stats.chatUnlocks} · {rupees(stats.chatUnlockPaise)}</b></div>
@@ -35,6 +38,39 @@ export default function Admin() {
         <div className="card"><small>Top-ups</small><b>{rupees(stats.topupsPaise)}</b></div>
         <div className="card"><small>Pending payouts</small><b>{rupees(stats.pendingWithdrawalsPaise)}</b></div>
       </div>
+
+      <section className="card stack">
+        <h3>Selfie verification {verifications.length > 0 && <span className="badge">{verifications.length}</span>}</h3>
+        {verifications.length === 0 && <p className="muted small">Nothing to review.</p>}
+        {verifications.map((v) => (
+          <div key={v.id} className="verify-review stack">
+            <div className="row-between small">
+              <span><b>{v.user.name}</b>, {v.user.age} · {v.user.email}</span>
+              <span className="muted">{timeAgo(v.createdAt)}</span>
+            </div>
+            <p className="small">Asked pose: {v.pose?.emoji} {v.pose?.text}</p>
+            {v.photoChanged && <p className="small warn-card">Profile photo changed after this selfie</p>}
+            <div className="verify-pair">
+              <figure><img src={photoUrl(v.user)} alt="Profile photo" /><figcaption>Profile photo</figcaption></figure>
+              <figure><img src={`/api/admin/verifications/${v.id}/selfie`} alt="Selfie" /><figcaption>Live selfie</figcaption></figure>
+            </div>
+            <div className="row">
+              <button
+                className="btn small ghost"
+                onClick={() => {
+                  const reason = prompt('Why is it rejected? (shown to the user)', "The selfie didn't match your photo or the pose");
+                  if (reason !== null) act(api(`/admin/verifications/${v.id}`, { method: 'POST', body: { action: 'reject', reason } }), 'Rejected');
+                }}
+              >
+                Reject
+              </button>
+              <button className="btn small" onClick={() => act(api(`/admin/verifications/${v.id}`, { method: 'POST', body: { action: 'approve' } }), 'Verified ✓')}>
+                Approve ✓
+              </button>
+            </div>
+          </div>
+        ))}
+      </section>
 
       <section className="card stack">
         <h3>Withdrawals</h3>

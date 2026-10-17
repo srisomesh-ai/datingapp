@@ -78,6 +78,7 @@ router.post('/discover/:id/guess', (req, res) => {
   const t = target(req);
   const blocked = guessBlockedReason(t, req.user);
   if (blocked === 'daily_limit') throw new HttpError(409, "This person isn't taking new chats today. Try again tomorrow!", { code: 'daily_limit' });
+  if (blocked === 'verified_only') throw new HttpError(409, 'Only verified people can guess this name. Get your blue tick first!', { code: blocked });
   if (blocked) throw new HttpError(409, "This profile isn't available", { code: blocked });
   ensureGuess(req.user.id, t);
   const guess = submitGuess(req.user.id, t.id, req.body?.optionIndex);

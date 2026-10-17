@@ -38,6 +38,11 @@ CREATE TABLE IF NOT EXISTS users (
   guess_min_age INTEGER,
   guess_max_age INTEGER,
   daily_chat_limit INTEGER,
+  guess_verified_only INTEGER NOT NULL DEFAULT 0,
+  verification_status TEXT NOT NULL DEFAULT 'none', -- none | pending | verified | rejected
+  verification_pose TEXT,
+  verification_note TEXT,
+  verified_at TEXT,
   is_admin INTEGER NOT NULL DEFAULT 0,
   is_banned INTEGER NOT NULL DEFAULT 0,
   last_seen_at TEXT,
@@ -68,6 +73,20 @@ CREATE TABLE IF NOT EXISTS connections (
   PRIMARY KEY (user_a, user_b)
 );
 CREATE INDEX IF NOT EXISTS idx_connections_b ON connections(user_b);
+
+-- Selfie verification requests (reviewed by an admin).
+CREATE TABLE IF NOT EXISTS verification_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  pose TEXT NOT NULL,
+  photo_version INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected','cancelled')),
+  reason TEXT,
+  reviewer_id INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  reviewed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_verification_status ON verification_requests(status, id);
 
 -- Someone paid to keep chatting with a person after their free messages.
 CREATE TABLE IF NOT EXISTS chat_unlocks (
@@ -191,6 +210,12 @@ if (!userCols.includes('coins')) db.exec('ALTER TABLE users ADD COLUMN coins INT
 for (const col of ['guess_min_age', 'guess_max_age', 'daily_chat_limit']) {
   if (!userCols.includes(col)) db.exec(`ALTER TABLE users ADD COLUMN ${col} INTEGER`);
 }
+const addUserCol = (name, def) => !userCols.includes(name) && db.exec(`ALTER TABLE users ADD COLUMN ${name} ${def}`);
+addUserCol('guess_verified_only', 'INTEGER NOT NULL DEFAULT 0');
+addUserCol('verification_status', "TEXT NOT NULL DEFAULT 'none'");
+addUserCol('verification_pose', 'TEXT');
+addUserCol('verification_note', 'TEXT');
+addUserCol('verified_at', 'TEXT');
 const connCols = db.prepare('PRAGMA table_info(connections)').all().map((c) => c.name);
 if (!connCols.includes('via')) db.exec("ALTER TABLE connections ADD COLUMN via TEXT NOT NULL DEFAULT 'guess'");
 // calls: allow mode 'sample' and track coins (SQLite can't alter a CHECK, so rebuild the table once).
