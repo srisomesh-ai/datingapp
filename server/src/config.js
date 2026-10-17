@@ -95,9 +95,10 @@ export const TURN_TTL_SECONDS = 6 * 3600;
 
 // See a photo, pick the right name: you're connected (chat opens for both of you).
 export const NAME_GUESS = {
-  options: 4, // names to choose from
+  options: 4, // names to choose from (one look-alike always fits the hint too)
   coinsPerCorrect: 1,
-  dailyCoinLimit: 50, // stops coin farming
+  dailyCoinLimit: 10, // stops coin farming
+  guessesPerDay: Number(env.GUESSES_PER_DAY ?? 20), // stops tapping through every photo
   retryHours: 24, // after a wrong guess, try the same person again later
 };
 
@@ -129,17 +130,28 @@ export const CATALOG = {
   chronotypes: ['Morning person', 'Night owl'],
   destinations: ['Mountains', 'Beaches', 'Big cities', 'Countryside', 'Abroad', 'Spiritual places'],
   lookingFor: ['soulmate', 'friend', 'both'],
-  // Decoy names for the guess-the-name game.
+  // Names for the guess-the-name options (look-alikes are picked from these).
   names: {
     female: [
-      'Aanya', 'Aditi', 'Aishwarya', 'Ananya', 'Anjali', 'Anushka', 'Bhavana', 'Deepika', 'Divya', 'Gauri', 'Ishita',
-      'Kavya', 'Keerthi', 'Lakshmi', 'Meera', 'Megha', 'Nandini', 'Neha', 'Nisha', 'Pooja', 'Priya', 'Radhika',
-      'Riya', 'Sahana', 'Sanjana', 'Shreya', 'Sneha', 'Swathi', 'Tanvi', 'Divyasri', 'Varsha', 'Yamini',
+      'Aanya', 'Aarti', 'Aditi', 'Akshara', 'Amala', 'Amrita', 'Ananya', 'Anisha', 'Anjali', 'Anjana', 'Ankita',
+      'Anusha', 'Anushka', 'Archana', 'Asha', 'Bhavana', 'Bhavya', 'Chaitra', 'Charu', 'Deepa', 'Deepika', 'Deepti',
+      'Divya', 'Durga', 'Gauri', 'Gayathri', 'Geetha', 'Harini', 'Harika', 'Isha', 'Ishita', 'Jaya', 'Jyothi',
+      'Kajal', 'Kavya', 'Kavitha', 'Keerthi', 'Komal', 'Lakshmi', 'Lalitha', 'Latha', 'Madhu', 'Mahima', 'Manasa',
+      'Meena', 'Meera', 'Megha', 'Monika', 'Nandini', 'Neha', 'Nidhi', 'Nisha', 'Nithya', 'Pallavi', 'Pavani',
+      'Pooja', 'Prachi', 'Preethi', 'Priya', 'Priyanka', 'Radha', 'Radhika', 'Rashmi', 'Rekha', 'Renu', 'Riya',
+      'Rupa', 'Sahana', 'Sakshi', 'Sana', 'Sanjana', 'Sapna', 'Sarika', 'Shalini', 'Shreya', 'Shruti', 'Sindhu',
+      'Sneha', 'Sonia', 'Sowmya', 'Sravani', 'Sruthi', 'Suma', 'Supriya', 'Swathi', 'Swetha', 'Tanvi', 'Tanya',
+      'Usha', 'Vaishali', 'Varsha', 'Vidya', 'Yamini',
     ],
     male: [
-      'Aarav', 'Abhinav', 'Aditya', 'Akash', 'Arjun', 'Bharath', 'Deepak', 'Gautam', 'Harsha', 'Karan', 'Karthik',
-      'Kiran', 'Manoj', 'Naveen', 'Nikhil', 'Pranav', 'Rahul', 'Rajesh', 'Ravi', 'Rohan', 'Sai', 'Sandeep',
-      'Siddharth', 'Sumanth', 'Suresh', 'Tarun', 'Varun', 'Vijay', 'Vikram', 'Vinay', 'Vishal', 'Yash',
+      'Aarav', 'Abhay', 'Abhinav', 'Abhishek', 'Aditya', 'Ajay', 'Akash', 'Akhil', 'Amar', 'Amit', 'Anand', 'Anil',
+      'Ankit', 'Arjun', 'Arun', 'Ashok', 'Bharath', 'Chetan', 'Darshan', 'Deepak', 'Dev', 'Dinesh', 'Ganesh',
+      'Gautam', 'Girish', 'Harish', 'Harsha', 'Hemanth', 'Jagan', 'Jay', 'Karan', 'Karthik', 'Kiran', 'Kishore',
+      'Krishna', 'Kunal', 'Lokesh', 'Madhav', 'Mahesh', 'Manish', 'Manoj', 'Mohan', 'Mukesh', 'Naresh', 'Naveen',
+      'Nikhil', 'Nitin', 'Pavan', 'Pradeep', 'Pranav', 'Prasad', 'Pratap', 'Rahul', 'Rajan', 'Rajesh', 'Rakesh',
+      'Ramesh', 'Ravi', 'Rohan', 'Rohit', 'Sachin', 'Sagar', 'Sai', 'Sandeep', 'Sanjay', 'Santosh', 'Satish',
+      'Shiva', 'Siddharth', 'Sumanth', 'Sunil', 'Suresh', 'Tarun', 'Uday', 'Varun', 'Venkat', 'Vijay', 'Vikas',
+      'Vikram', 'Vinay', 'Vinod', 'Vishal', 'Vivek', 'Yash', 'Yogesh',
     ],
   },
   genders: ['male', 'female', 'other'],

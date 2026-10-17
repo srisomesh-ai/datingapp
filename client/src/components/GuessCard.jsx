@@ -7,7 +7,7 @@ import { api, labelFor, photoUrl } from '../lib/api.js';
  * Discover card: see the photo, pick the right name. A right guess opens a chat
  * for both of you (and they get notified); a wrong one can be retried tomorrow.
  */
-export default function GuessCard({ profile, onDone }) {
+export default function GuessCard({ profile, onDone, guessesLeft, onGuessesLeft }) {
   const { toast, setUser } = useApp();
   const navigate = useNavigate();
   const [p, setP] = useState(profile);
@@ -24,8 +24,10 @@ export default function GuessCard({ profile, onDone }) {
       setGuess(res.guess);
       setP((prev) => ({ ...prev, ...res.profile }));
       setUser((u) => ({ ...u, coins: res.coins }));
+      onGuessesLeft?.(res.guessesLeft);
     } catch (err) {
-      toast(err.message, 'error');
+      if (err.data?.code === 'daily_guess_limit') onGuessesLeft?.(0);
+      else toast(err.message, 'error');
       setPicked(null);
     } finally {
       setBusy(false);
@@ -56,10 +58,21 @@ export default function GuessCard({ profile, onDone }) {
       </div>
 
       <div className="card stack">
-        {guess.status === 'pending' && (
+        {guess.status === 'pending' && guessesLeft === 0 && (
+          <div className="stack center">
+            <h3>That's all for today 🌙</h3>
+            <p className="muted small">You've used today's guesses. Come back tomorrow for more!</p>
+          </div>
+        )}
+        {guess.status === 'pending' && guessesLeft !== 0 && (
           <>
-            <h3>What's {their} name? 🤔</h3>
-            <p className="muted small">Look at the letters on the photo and pick the right name. Guess it right and your chat opens!</p>
+            <div className="row-between">
+              <h3>What's {their} name? 🤔</h3>
+              {guessesLeft != null && <span className="pill small">{guessesLeft} left today</span>}
+            </div>
+            <p className="muted small">
+              Look closely at the letters on the photo: more than one name may fit. Guess right and your chat opens!
+            </p>
           </>
         )}
         <div className="options grid2">
@@ -69,7 +82,7 @@ export default function GuessCard({ profile, onDone }) {
             else if (wrong && i === picked) cls += ' wrong';
             else if (busy && i === picked) cls += ' picked';
             return (
-              <button key={name} className={cls} disabled={busy || guess.status !== 'pending'} onClick={() => pick(i)}>
+              <button key={name} className={cls} disabled={busy || guess.status !== 'pending' || guessesLeft === 0} onClick={() => pick(i)}>
                 {name}
               </button>
             );

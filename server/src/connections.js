@@ -61,6 +61,15 @@ export function nameKnown(viewerId, target) {
   return viewerId === target.id || Boolean(target.is_host) || isConnected(viewerId, target.id);
 }
 
+/** Guesses left today (NAME_GUESS.guessesPerDay), so nobody taps through every photo. */
+export function guessesLeftToday(visitorId) {
+  const used = one(
+    "SELECT COUNT(*) AS n FROM name_guesses WHERE visitor_id = ? AND guessed_at >= datetime('now', 'start of day')",
+    visitorId,
+  ).n;
+  return Math.max(0, NAME_GUESS.guessesPerDay - used);
+}
+
 /**
  * @returns guess view plus `connected` (true on a right guess) and `dailyLimitReached`.
  */
@@ -70,6 +79,9 @@ export function submitGuess(visitorId, targetId, optionIndex) {
     if (!g) throw new HttpError(404, 'Open their profile first');
     if (g.status === 'correct') throw new HttpError(409, 'You already guessed this name');
     if (g.status === 'wrong') throw new HttpError(429, 'You can try this person again later', { guess: guessView(g) });
+    if (guessesLeftToday(visitorId) <= 0) {
+      throw new HttpError(429, `You've used today's ${NAME_GUESS.guessesPerDay} guesses. Come back tomorrow!`, { code: 'daily_guess_limit' });
+    }
     const options = JSON.parse(g.options);
     if (!Number.isInteger(optionIndex) || optionIndex < 0 || optionIndex >= options.length) {
       throw new HttpError(400, 'Invalid option');

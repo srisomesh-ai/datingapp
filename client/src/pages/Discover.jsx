@@ -8,12 +8,14 @@ export default function Discover() {
   const { user, toast, socket } = useApp();
   const [profiles, setProfiles] = useState(null);
   const [index, setIndex] = useState(0);
+  const [guessesLeft, setGuessesLeft] = useState(null);
 
   const load = useCallback(async () => {
     setProfiles(null);
     try {
-      const { profiles } = await api('/discover');
+      const { profiles, guessesLeft } = await api('/discover');
       setProfiles(profiles);
+      setGuessesLeft(guessesLeft);
       setIndex(0);
     } catch (err) {
       toast(err.message, 'error');
@@ -60,7 +62,7 @@ export default function Discover() {
   const next = () => (index + 1 >= profiles.length ? load() : setIndex(index + 1));
   return (
     <div className="page">
-      <GuessCard key={current.id} profile={current} onDone={next} />
+      <GuessCard key={current.id} profile={current} onDone={next} guessesLeft={guessesLeft} onGuessesLeft={setGuessesLeft} />
     </div>
   );
 }

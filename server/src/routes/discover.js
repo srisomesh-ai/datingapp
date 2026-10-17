@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { NAME_GUESS, SKIP_DAYS } from '../config.js';
 import { all, one, run } from '../db.js';
-import { ensureGuess, guessView, submitGuess } from '../connections.js';
+import { ensureGuess, guessView, guessesLeftToday, submitGuess } from '../connections.js';
 import { emitToUser } from '../realtime/hub.js';
 import { HttpError, isBlockedEitherWay, isProfileComplete, publicView, requireAuth, shuffle } from '../util.js';
 
@@ -57,7 +57,7 @@ router.get('/discover', (req, res) => {
     `-${SKIP_DAYS} days`,
   );
   const picked = shuffle(rows.filter(isProfileComplete)).slice(0, 20);
-  res.json({ profiles: picked.map((u) => card(me.id, u)), rules: NAME_GUESS });
+  res.json({ profiles: picked.map((u) => card(me.id, u)), rules: NAME_GUESS, guessesLeft: guessesLeftToday(me.id) });
 });
 
 router.post('/discover/:id/skip', (req, res) => {
@@ -83,7 +83,12 @@ router.post('/discover/:id/guess', (req, res) => {
     });
   }
   const me = one('SELECT coins FROM users WHERE id = ?', req.user.id);
-  res.json({ guess, profile: publicView(t, { hideName: !guess.connected, mask: guess.mask }), coins: me.coins });
+  res.json({
+    guess,
+    profile: publicView(t, { hideName: !guess.connected, mask: guess.mask }),
+    coins: me.coins,
+    guessesLeft: guessesLeftToday(req.user.id),
+  });
 });
 
 export default router;

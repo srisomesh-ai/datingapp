@@ -10,6 +10,7 @@ process.env.UPLOAD_DIR = tmp;
 process.env.BILLING_INTERVAL_MS = '150';
 process.env.RING_TIMEOUT_MS = '2000';
 process.env.SAMPLE_CALL_SECONDS = '1';
+process.env.GUESSES_PER_DAY = '2';
 process.env.TURN_URLS = 'turn:turn.example.test:3478?transport=udp,turn:turn.example.test:3478?transport=tcp';
 process.env.TURN_SECRET = 'test-turn-secret';
 
@@ -104,17 +105,32 @@ test('fee split is 25% platform / 75% friend', () => {
   assert.deepEqual(splitFee(2000), { fee: 500, hostShare: 1500 });
 });
 
-test('guessing is easy: half the letters show and only the answer fits the first letter', () => {
-  const m = maskName('Ananya');
-  assert.equal(m[0], 'A');
-  assert.equal(m.split(' ').filter((c) => c !== '_').length, 3); // A + 2 of the other 5
-  for (let i = 0; i < 20; i++) {
-    const g = buildNameGuess({ name: 'Ananya Rao', gender: 'female' });
-    assert.equal(g.options.length, 4);
-    assert.equal(g.options[g.answer], 'Ananya');
-    assert.equal(new Set(g.options).size, 4);
-    assert.deepEqual(g.options.filter((o) => o[0] === 'A'), ['Ananya']);
+/** Which options are consistent with the hint the player sees? */
+function fitting(mask, options) {
+  if (mask.endsWith('…')) return options.filter((o) => o[0].toLowerCase() === mask[0].toLowerCase());
+  const letters = mask.split(' ');
+  return options.filter((o) => o.length === letters.length && letters.every((c, i) => c === '_' || c.toLowerCase() === o[i].toLowerCase()));
+}
+
+test('guessing is a little challenging: exactly two names fit the hint', () => {
+  const names = [
+    ['Ananya', 'female'], ['Asha', 'female'], ['Kavya', 'female'], ['Meera', 'female'], ['Priya', 'female'],
+    ['Rohan', 'male'], ['Ravi', 'male'], ['Sai', 'male'], ['Arjun', 'male'], ['Siddharth', 'male'], ['Zubin', 'male'],
+  ];
+  for (const [name, gender] of names) {
+    for (let i = 0; i < 25; i++) {
+      const g = buildNameGuess({ name: `${name} Test`, gender });
+      assert.equal(g.options.length, 4, name);
+      assert.equal(new Set(g.options).size, 4, name);
+      assert.equal(g.options[g.answer], name);
+      const fit = fitting(g.mask, g.options);
+      assert.equal(fit.length, 2, `${name}: ${g.mask} -> ${g.options}`);
+      assert.ok(fit.includes(name));
+      // Not too much is given away: at most about a third of the letters.
+      if (!g.mask.endsWith('…')) assert.ok(g.mask.split(' ').filter((c) => c !== '_').length <= Math.max(1, Math.floor(name.length / 3)));
+    }
   }
+  assert.equal(maskName('Rohan', [0, 4]), 'R _ _ _ n');
 });
 
 const answerOf = (visitor, target) =>
@@ -126,7 +142,8 @@ test('discover shows the photo and profile but hides the name', async () => {
   const a = r.body.profiles.find((p) => p.id === asha.id);
   assert.ok(a);
   assert.equal(a.name, null);
-  assert.match(a.nameMask, /^A( [_a-z])+$/);
+  assert.ok(/_|…/.test(a.nameMask) && !a.nameMask.includes('Asha'));
+  assert.equal(fitting(a.nameMask, a.guess.options).length, 2);
   assert.equal(a.guess.options.length, 4);
   assert.equal(a.guess.correctOption, undefined);
   assert.deepEqual(a.hobbies, ['Cooking', 'Dancing', 'Reading']);
@@ -379,6 +396,23 @@ test('TURN credentials are per-user, short-lived and never in the public meta', 
   assert.ok(expiry > Date.now() / 1000 + 3600);
   // Same formula coturn uses with use-auth-secret.
   assert.equal(turn.credential, crypto.createHmac('sha1', 'test-turn-secret').update(turn.username).digest('base64'));
+});
+
+test('daily guess limit stops tapping through every photo', async () => {
+  // GUESSES_PER_DAY is 2 in tests. Asha hasn't guessed anyone yet today.
+  await api(asha.token, 'GET', '/api/discover');
+  const targets = [kiran, meera];
+  for (const t of targets) {
+    const r = await api(asha.token, 'POST', `/api/discover/${t.id}/guess`, { optionIndex: answerOf(asha, t) });
+    assert.equal(r.status, 200);
+  }
+  const d = await api(asha.token, 'GET', '/api/discover');
+  assert.equal(d.body.guessesLeft, 0);
+  await api(asha.token, 'GET', `/api/users/${ravi.id}`);
+  db.prepare("INSERT OR IGNORE INTO name_guesses (visitor_id, target_id, mask, options, answer) VALUES (?, ?, 'R _ _ _', '[\"Ravi\",\"Rahul\",\"Rohan\",\"Rajan\"]', 0)").run(asha.id, ravi.id);
+  const r = await api(asha.token, 'POST', `/api/discover/${ravi.id}/guess`, { optionIndex: 0 });
+  assert.equal(r.status, 429);
+  assert.equal(r.body.code, 'daily_guess_limit');
 });
 
 test('friends withdraw earnings', async () => {
