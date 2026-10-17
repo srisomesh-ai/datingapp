@@ -18,7 +18,7 @@ function CallSheet({ other, media, onClose }) {
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="sheet card stack" onClick={(e) => e.stopPropagation()}>
-        <h3>{media === 'video' ? '🎥 Video' : '📞 Voice'} call {other.name}</h3>
+        <h3>🎥 Video call {other.name}</h3>
         <button className="btn" onClick={() => go('match')}>
           Call for {rupees(rate)}/min · wallet {rupees(me.walletPaise)}
         </button>
@@ -138,7 +138,6 @@ export default function Chat() {
         </div>
         {info.canMessage && (
           <>
-            <button className="icon" onClick={() => setCallMedia('audio')} aria-label="Voice call">📞</button>
             <button className="icon" onClick={() => setCallMedia('video')} aria-label="Video call">🎥</button>
           </>
         )}

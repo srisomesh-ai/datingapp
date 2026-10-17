@@ -294,7 +294,7 @@ test('paid call: package minutes first, then wallet; 25% fee; ends when balance 
     assert.equal(db.prepare('SELECT wallet_paise FROM users WHERE id = ?').get(kiran.id).wallet_paise, 1000);
 
     // Not enough for another minute now.
-    const again = await emitAck(kSock, 'call:start', { to: meera.id, media: 'audio', mode: 'paid' });
+    const again = await emitAck(kSock, 'call:start', { to: meera.id, media: 'video', mode: 'paid' });
     assert.equal(again.code, 'insufficient_balance');
   } finally {
     kSock.close();
@@ -307,17 +307,17 @@ test('no free calls: connected people pay ₹5/min, and the platform keeps it', 
   const aSock = await connect(asha.token);
   const kSock = await connect(kiran.token);
   try {
-    assert.ok((await emitAck(rSock, 'call:start', { to: asha.id, media: 'audio', mode: 'free' })).error);
+    assert.ok((await emitAck(rSock, 'call:start', { to: asha.id, media: 'video', mode: 'free' })).error);
     // Not connected: no match call.
-    assert.match((await emitAck(kSock, 'call:start', { to: asha.id, media: 'audio', mode: 'match' })).error, /Guess their name/);
+    assert.match((await emitAck(kSock, 'call:start', { to: asha.id, media: 'video', mode: 'match' })).error, /Guess their name/);
     // Connected but no money.
-    assert.equal((await emitAck(rSock, 'call:start', { to: asha.id, media: 'audio', mode: 'match' })).code, 'insufficient_balance');
+    assert.equal((await emitAck(rSock, 'call:start', { to: asha.id, media: 'video', mode: 'match' })).code, 'insufficient_balance');
 
     db.prepare('UPDATE users SET wallet_paise = 10_00 WHERE id = ?').run(ravi.id); // 2 minutes
     const feeBefore = db.prepare("SELECT COALESCE(SUM(amount_paise), 0) AS s FROM transactions WHERE account = 'platform'").get().s;
     const earningsBefore = db.prepare('SELECT earnings_paise FROM users WHERE id = ?').get(asha.id).earnings_paise;
     const incoming = once(aSock, 'call:incoming');
-    const start = await emitAck(rSock, 'call:start', { to: asha.id, media: 'audio', mode: 'match' });
+    const start = await emitAck(rSock, 'call:start', { to: asha.id, media: 'video', mode: 'match' });
     assert.ok(start.ok, JSON.stringify(start));
     assert.equal(start.kind, 'match');
     assert.equal(start.rate.paisePerMinute, 5_00);
@@ -373,9 +373,9 @@ test('sample call: 10 coins for 1 minute with anyone, charged only if they accep
 
     // Once per person per day, and coins are checked up front.
     db.prepare('UPDATE users SET coins = 20 WHERE id = ?').run(kiran.id);
-    assert.match((await emitAck(kSock, 'call:start', { to: asha.id, media: 'audio', mode: 'sample' })).error, /already used a coin call/);
+    assert.match((await emitAck(kSock, 'call:start', { to: asha.id, media: 'video', mode: 'sample' })).error, /already used a coin call/);
     db.prepare('UPDATE users SET coins = 5 WHERE id = ?').run(kiran.id);
-    assert.equal((await emitAck(kSock, 'call:start', { to: ravi.id, media: 'audio', mode: 'sample' })).code, 'insufficient_coins');
+    assert.equal((await emitAck(kSock, 'call:start', { to: ravi.id, media: 'video', mode: 'sample' })).code, 'insufficient_coins');
   } finally {
     kSock.close();
     aSock.close();
@@ -413,6 +413,20 @@ test('daily guess limit stops tapping through every photo', async () => {
   const r = await api(asha.token, 'POST', `/api/discover/${ravi.id}/guess`, { optionIndex: 0 });
   assert.equal(r.status, 429);
   assert.equal(r.body.code, 'daily_guess_limit');
+});
+
+test('video calls only: voice-only calls are refused', async () => {
+  const rSock = await connect(ravi.token);
+  const aSock = await connect(asha.token);
+  try {
+    for (const mode of ['match', 'sample', 'paid']) {
+      const r = await emitAck(rSock, 'call:start', { to: asha.id, media: 'audio', mode });
+      assert.equal(r.code, 'video_only', mode);
+    }
+  } finally {
+    rSock.close();
+    aSock.close();
+  }
 });
 
 test('friends withdraw earnings', async () => {

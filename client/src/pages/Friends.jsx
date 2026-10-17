@@ -38,7 +38,7 @@ export default function Friends() {
     <div className="page stack">
       <h2>Find a Friend</h2>
       <div className="card pricing">
-        <p>Lonely or bored? Voice or video call a friendly person right now.</p>
+        <p>Lonely or bored? Video call a friendly person right now.</p>
         <div className="row">
           <div className="price"><b>{rupees(r.female.pricePaise)}</b><span>/ {r.female.minutes} min with a woman</span></div>
           <div className="price"><b>{rupees(r.male.pricePaise)}</b><span>/ {r.male.minutes} min with a man</span></div>
@@ -80,7 +80,6 @@ export default function Friends() {
                     <Link to="/wallet" className="btn small">Add money to call</Link>
                   ) : (
                     <>
-                      <button className="btn small ghost" disabled={!canCall} onClick={() => startCall(f, 'audio', 'paid')}>📞 Voice</button>
                       <button className="btn small" disabled={!canCall} onClick={() => startCall(f, 'video', 'paid')}>🎥 Video</button>
                     </>
                   )}

@@ -8,7 +8,7 @@ This is a web app for finding a soulmate or a friend, built mobile-first. It has
    - **Chat is free up to a limit:** each person gets **10 free messages** per chat. After that, **₹49** (paid once, from the wallet) unlocks unlimited messages to that person.
    - **No free calls:** calling someone you're connected with costs **₹5/min** from the wallet (the platform keeps it), or **🪙 10 for a 1-minute call**. Coins are only used if they answer, at most once per person per day.
    - Daily limits stop people tapping through every photo: **20 guesses per day** and at most **10 coins per day** (`guessesPerDay`, `dailyCoinLimit`).
-2. **Find a Friend (paid voice and video calls).** Users can turn on *Friend mode* and go "available". Anyone can then voice or video call them, paying per minute:
+2. **Find a Friend (paid video calls).** Users can turn on *Friend mode* and go "available". Anyone can then video call them, paying per minute:
 
    | Friend    | Pay-as-you-go           | Packages (from wallet, valid 90 days)                  |
    |-----------|-------------------------|--------------------------------------------------------|
@@ -23,7 +23,7 @@ This is a web app for finding a soulmate or a friend, built mobile-first. It has
 - The answer never reaches the client before you guess: the server sends only the masked name and the options, and hides the name everywhere else (profile, chat and call lookups) until you're connected.
 - Coins ledger shown in the top bar and Wallet: earned by guessing names, spent on 1-minute calls (`SAMPLE_CALL`). Chat limits and the per-minute call price are `CHAT` and `MATCH_CALL` in `server/src/config.js`.
 - Realtime chat over Socket.IO, with unread counts and read receipts
-- 1:1 WebRTC voice and video calls (mute, camera on/off, front/back camera switch, ringtone, live cost meter, low-balance warning, end-of-call summary)
+- 1:1 WebRTC **video-only** calls for safety: no voice-only calls and no camera-off button (mute and front/back camera switch, ringtone, live cost meter, low-balance warning, end-of-call summary)
 - Wallet: top-ups through Razorpay (UPI, cards, netbanking), call packages, transaction ledger, friend earnings and UPI withdrawals
 - Safety: block, report, admin ban
 - Admin page: revenue and platform-fee stats, withdrawal approvals, reports

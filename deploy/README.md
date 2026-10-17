@@ -32,7 +32,7 @@ It takes about 5 minutes. It installs and configures:
 
 - Node.js 22, and the app as a service that restarts on reboot or crash
 - **Caddy** for HTTPS, with free certificates that renew automatically
-- **coturn**, a TURN relay so voice/video calls connect on mobile data and strict Wi-Fi
+- **coturn**, a TURN relay so video calls connect on mobile data and strict Wi-Fi
 - the firewall, and daily database backups in `/var/backups/datingapp`
 
 At the end it prints your address, e.g. `https://203-0-113-7.sslip.io`.
@@ -50,7 +50,7 @@ Checklist:
 - [ ] Sign up, add a photo, hobbies and likes
 - [ ] Discover: guess a name right, get +1 🪙; the other phone gets "… guessed your name!"
 - [ ] Both phones have the chat; after 10 messages, unlock it for ₹49
-- [ ] Voice + video call between you: ₹5/min, or 🪙 10 for 1 minute
+- [ ] Video call between you: ₹5/min, or 🪙 10 for 1 minute
 - [ ] Profile → turn on **Friend mode** and go available, then from the other phone call them in **Find a Friend**: per-minute billing and earnings
 - [ ] 🪙 10 sample call. Guess 10 names, or give yourself test coins on the server:
       `sudo sqlite3 /var/lib/datingapp/app.db "UPDATE users SET coins = coins + 20 WHERE email = 'you@example.com'"`

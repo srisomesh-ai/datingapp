@@ -95,7 +95,8 @@ export function registerCallHandlers(io, socket) {
     try {
       const callee = one('SELECT * FROM users WHERE id = ? AND is_banned = 0', Number(to));
       if (!callee || callee.id === me.id) return ack({ error: 'User not found' });
-      if (!['audio', 'video'].includes(media)) return ack({ error: 'Invalid call type' });
+      // Video only: people always see who they're talking to (safety; no voice-only calls).
+      if (media !== 'video') return ack({ error: 'Only video calls are available', code: 'video_only' });
       if (!['paid', 'match', 'sample'].includes(requested)) return ack({ error: 'Invalid call mode' });
       // Match calls are billed like friend calls (stored as 'paid' with the 'match' rate).
       const mode = requested === 'match' ? 'paid' : requested;

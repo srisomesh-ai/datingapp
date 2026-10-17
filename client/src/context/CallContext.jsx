@@ -1,4 +1,4 @@
-// Voice/video calling over WebRTC. The server relays signaling and handles billing.
+// Video calling over WebRTC (video only, for safety). The server relays signaling and handles billing.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from './AppContext.jsx';
 import { api } from '../lib/api.js';
@@ -46,7 +46,6 @@ export function CallProvider({ children }) {
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
   const [muted, setMuted] = useState(false);
-  const [cameraOff, setCameraOff] = useState(false);
 
   const pcRef = useRef(null);
   const localRef = useRef(null);
@@ -65,7 +64,6 @@ export function CallProvider({ children }) {
     setLocalStream(null);
     setRemoteStream(null);
     setMuted(false);
-    setCameraOff(false);
   }, []);
 
   const getMedia = useCallback(async (media) => {
@@ -250,14 +248,6 @@ export function CallProvider({ children }) {
     }
   }, []);
 
-  const toggleCamera = useCallback(() => {
-    const track = localRef.current?.getVideoTracks()[0];
-    if (track) {
-      track.enabled = !track.enabled;
-      setCameraOff(!track.enabled);
-    }
-  }, []);
-
   const switchCamera = useCallback(async () => {
     const current = localRef.current?.getVideoTracks()[0];
     if (!current || !pcRef.current) return;
@@ -277,8 +267,8 @@ export function CallProvider({ children }) {
   }, [toast]);
 
   const value = useMemo(
-    () => ({ call, localStream, remoteStream, muted, cameraOff, startCall, accept, reject, hangup, dismiss, toggleMute, toggleCamera, switchCamera }),
-    [call, localStream, remoteStream, muted, cameraOff, startCall, accept, reject, hangup, dismiss, toggleMute, toggleCamera, switchCamera],
+    () => ({ call, localStream, remoteStream, muted, startCall, accept, reject, hangup, dismiss, toggleMute, switchCamera }),
+    [call, localStream, remoteStream, muted, startCall, accept, reject, hangup, dismiss, toggleMute, switchCamera],
   );
   return <CallContext.Provider value={value}>{children}</CallContext.Provider>;
 }

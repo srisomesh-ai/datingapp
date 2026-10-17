@@ -38,7 +38,7 @@ const END_REASONS = {
 };
 
 export default function CallScreen() {
-  const { call, localStream, remoteStream, muted, cameraOff, accept, reject, hangup, dismiss, toggleMute, toggleCamera, switchCamera } = useCall();
+  const { call, localStream, remoteStream, muted, accept, reject, hangup, dismiss, toggleMute, switchCamera } = useCall();
   const { meta } = useApp();
   const seconds = useElapsedSeconds(call.phase === 'active' ? call.startedAt : null);
 
@@ -112,7 +112,7 @@ export default function CallScreen() {
     <div className={`call-overlay ${isVideo ? 'video' : ''}`}>
       {isVideo && <Video stream={remoteStream} className="remote-video" />}
       {!isVideo && <audio ref={(el) => el && (el.srcObject = remoteStream)} autoPlay />}
-      {isVideo && localStream && <Video stream={localStream} muted className={`local-video ${cameraOff ? 'off' : ''}`} />}
+      {isVideo && localStream && <Video stream={localStream} muted className="local-video" />}
 
       <div className="call-top">
         <strong>{name}</strong>
@@ -142,7 +142,6 @@ export default function CallScreen() {
         <button className={`round ${muted ? 'on' : ''}`} onClick={toggleMute} aria-label="Mute">{muted ? '🔇' : '🎙️'}</button>
         {isVideo && (
           <>
-            <button className={`round ${cameraOff ? 'on' : ''}`} onClick={toggleCamera} aria-label="Camera">{cameraOff ? '🚫' : '📷'}</button>
             <button className="round" onClick={switchCamera} aria-label="Switch camera">🔄</button>
           </>
         )}
